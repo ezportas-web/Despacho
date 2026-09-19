@@ -521,12 +521,21 @@ function escolherManual(t, valor) {
 }
 
 function montarEnvio(p) {
+  // O FECHO DO E-MAIL, no formato exato da extensão
+  //   O motor manda o texto até "DESTINATÁRIO"; daqui para baixo é a parte
+  //   que só existe depois de escolher a transportadora.
+  //
+  //   Repare na diferença, que parece erro de digitação e não é:
+  //     VALOR FRETE     (lá em cima) = o que o comprador pagou
+  //     VALOR DO FRETE  (aqui)       = o que a transportadora cobra
   var base = cotacao.escopoBase || '';
-  var texto = base + '\n\nVALOR FRETE: ' + brl(escolha.v) +
-    '\nVALOR TOTAL NF: ' + brl(p.total + escolha.v) +
-    '\nTRANSPORTADORA: ' + escolha.t +
-    (escolha.cotacao ? '\nNUMERO DA COTACAO: ' + escolha.cotacao : '') +
-    (escolha.prazo ? '\nPRAZO: ' + escolha.prazo + ' dias uteis' : '');
+  var peso = Number(p.peso || 0).toFixed(2).replace('.', ',');
+
+  var texto = base +
+    '\n\nTRANSPORTADORA: ' + escolha.t +
+    '\nNÚMERO DA COTAÇÃO: ' + (escolha.cotacao || '') +
+    '\nPESO (KG): ' + peso +
+    '\nVALOR DO FRETE: ' + brl(escolha.v);
 
   return '<div class="secao">Confira antes de enviar</div>'+
     '<textarea class="escopo" id="escopo">'+esc(texto)+'</textarea>'+
