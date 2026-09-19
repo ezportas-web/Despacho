@@ -540,7 +540,8 @@ async function enviar() {
   try {
     resultado = await pedir('enviar', {
       loja: p.loja, pedido: p.ids[0], transp: escolha.t,
-      frete: escolha.v, escopo: $('escopo').value
+      frete: escolha.v, cotacao: escolha.cotacao || '',
+      escopo: $('escopo').value
     });
   } catch (e) {
     resultado = { email:false, avisos:['Falhou: '+e.message] };
