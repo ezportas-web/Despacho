@@ -1,0 +1,17 @@
+{
+  "name": "Despacho — Fácil Shop e Domo Wood",
+  "short_name": "Despacho",
+  "description": "Pedidos a despachar, cotação de frete e faturamento do mês.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#EEF1F3",
+  "theme_color": "#1E2D3D",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "icone-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icone-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icone-512-recheio.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

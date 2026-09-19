@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Despacho</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1E2D3D">
+<link rel="apple-touch-icon" href="icone-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Despacho">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ardosia:#1E2D3D;--ardosia-2:#2C4257;--papel:#EEF1F3;--branco:#FFFFFF;
+    --linha:#D4DBE0;--aluminio:#7B8A97;--ipe:#C07C3A;--ok:#2C6E4E;
+    --atencao:#A8511E;--texto:#1E2D3D;--texto-2:#5B6B7A;--destaque:#F3F6F8;
+    --barra-baixo:64px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:'Barlow',system-ui,sans-serif;background:var(--papel);color:var(--texto);
+    font-size:16px;line-height:1.45;-webkit-font-smoothing:antialiased;
+    overscroll-behavior-y:none}
+  button{font:inherit;color:inherit;cursor:pointer;border:none;background:none}
+  input,textarea{font:inherit;color:inherit}
+  :focus-visible{outline:2px solid var(--ipe);outline-offset:2px}
+
+  /* ---- a barra de cima, colada no topo ---- */
+  .topo{background:var(--ardosia);color:#fff;padding:calc(env(safe-area-inset-top) + 12px) 18px 12px;
+    display:flex;align-items:baseline;gap:12px;position:sticky;top:0;z-index:20;
+    border-bottom:3px solid var(--ipe)}
+  .topo h1{font-family:'Barlow Condensed',sans-serif;font-size:23px;font-weight:600;letter-spacing:.04em}
+  .topo .conta{margin-left:auto;font-size:14px;color:#A8BCCC;font-variant-numeric:tabular-nums}
+  .topo button{color:#A8BCCC;font-size:14px;padding:3px 9px;border:1px solid #3E5368;border-radius:3px}
+
+  .aviso{background:var(--ipe);color:#fff;padding:8px 18px;font-size:13.5px}
+
+  /* ---- a área que rola ---- */
+  main{padding-bottom:calc(var(--barra-baixo) + env(safe-area-inset-bottom) + 12px)}
+  .tela{display:none}
+  .tela.ativa{display:block}
+
+  /* ---- a barra de abas embaixo ---- */
+  .abas{position:fixed;left:0;right:0;bottom:0;z-index:30;display:flex;
+    background:var(--branco);border-top:1px solid var(--linha);
+    padding-bottom:env(safe-area-inset-bottom)}
+  .abas button{flex:1;padding:10px 4px 12px;color:var(--texto-2);
+    font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:600;
+    letter-spacing:.06em;border-top:3px solid transparent;margin-top:-1px}
+  .abas button .ic{display:block;font-size:20px;line-height:1.1;margin-bottom:1px}
+  .abas button[aria-selected="true"]{color:var(--ardosia);border-top-color:var(--ipe)}
+
+  /* ---- lista de pedidos ---- */
+  .pedido{display:block;width:100%;text-align:left;padding:15px 18px;background:var(--branco);
+    border-bottom:1px solid var(--linha);border-left:5px solid var(--linha)}
+  .pedido.espera-1{border-left-color:var(--ipe)}
+  .pedido.espera-2{border-left-color:var(--atencao)}
+  .pedido .topo-l{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+  .pedido .nome{font-weight:600;font-size:19px;line-height:1.2}
+  .pedido .valor{font-variant-numeric:tabular-nums;font-weight:600;font-size:16px;white-space:nowrap}
+  .pedido .oque{color:var(--texto-2);font-size:14px;margin-top:4px;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap}
+  .pedido .rodape{display:flex;gap:8px;align-items:center;margin-top:9px;flex-wrap:wrap}
+  .loja{font-family:'Barlow Condensed',sans-serif;font-size:12.5px;font-weight:700;
+    letter-spacing:.07em;color:#fff;padding:2px 9px;border-radius:2px}
+  .chip{font-size:12.5px;font-weight:600;color:var(--texto-2);background:var(--papel);
+    padding:2px 9px;border-radius:2px;font-variant-numeric:tabular-nums}
+  .espera{font-size:12.5px;font-weight:600;color:var(--atencao)}
+
+  /* ---- detalhe ---- */
+  .detalhe{padding:16px 18px 30px}
+  .voltar{color:var(--texto-2);font-size:15px;padding:8px 0}
+  .cabeca{border-bottom:3px solid var(--ardosia);padding-bottom:14px;margin:6px 0 18px}
+  .cabeca h2{font-size:23px;font-weight:600;line-height:1.15;margin-top:8px}
+  .cabeca .end{color:var(--texto-2);margin-top:6px}
+  .cabeca .doc{color:var(--aluminio);font-size:13.5px;margin-top:6px;font-variant-numeric:tabular-nums}
+  .cabeca .sem-cpf{color:var(--atencao);font-weight:600}
+
+  .item{display:flex;gap:12px;padding:9px 0;border-bottom:1px solid var(--linha)}
+  .item .qtd{font-variant-numeric:tabular-nums;font-weight:700;color:var(--ipe);flex:none;width:30px}
+  .item .sku{color:var(--aluminio);font-size:13px}
+  .item .preco{font-variant-numeric:tabular-nums;white-space:nowrap}
+
+  .carga{display:flex;gap:24px;padding:13px 15px;background:var(--branco);
+    border:1px solid var(--linha);border-top:3px solid var(--ardosia);margin:18px 0;flex-wrap:wrap}
+  .carga div{font-variant-numeric:tabular-nums;font-size:18px;font-weight:600}
+  .carga span{display:block;color:var(--aluminio);font-size:12.5px;font-weight:400}
+
+  .principal{width:100%;background:var(--ardosia);color:#fff;padding:16px;
+    font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:600;letter-spacing:.05em}
+  .principal:disabled{background:var(--aluminio)}
+  .enviar{background:var(--ok)}
+
+  .secao{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:600;margin:26px 0 4px}
+  .nota{color:var(--texto-2);font-size:14px;margin-bottom:12px}
+  .nota.alerta{color:var(--atencao);font-weight:500}
+
+  .transp{display:flex;align-items:stretch;width:100%;text-align:left;background:var(--branco);
+    border:1px solid var(--linha);margin-bottom:9px}
+  .transp[aria-pressed="true"]{border-color:var(--ardosia);border-width:2px;background:var(--destaque)}
+  .transp.melhor{border-color:var(--ok);border-width:2px}
+  .transp .marca{flex:none;width:54px;color:#fff;display:flex;align-items:center;justify-content:center;
+    font-family:'Barlow Condensed',sans-serif;font-size:23px;font-weight:700;background:var(--aluminio)}
+  .transp .meio{flex:1;padding:11px 14px;min-width:0}
+  .transp .nome{font-family:'Barlow Condensed',sans-serif;font-size:19px;font-weight:600;letter-spacing:.04em}
+  .transp .obs{color:var(--atencao);font-size:12.5px;margin-top:1px}
+  .transp .obs.neutra{color:var(--aluminio)}
+  .transp .dir{flex:none;padding:11px 15px;text-align:right;display:flex;flex-direction:column;justify-content:center}
+  .transp .v{font-size:23px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1;white-space:nowrap}
+  .transp.melhor .v{color:var(--ok)}
+  .transp .v.caro{color:var(--atencao)}
+  .transp .prazo{color:var(--aluminio);font-size:12.5px}
+  .transp.recusada{opacity:.5}
+
+  .escopo{width:100%;min-height:230px;padding:14px;background:var(--branco);border:1px solid var(--linha);
+    font-size:14px;line-height:1.55;resize:vertical}
+
+  .feito{background:var(--branco);border-left:5px solid var(--ok);padding:20px;margin-top:18px}
+  .feito h3{font-family:'Barlow Condensed',sans-serif;font-size:20px;color:var(--ok)}
+  .feito.falhou{border-left-color:var(--atencao)}
+  .feito.falhou h3{color:var(--atencao)}
+  .feito ul{margin:10px 0 0 18px;color:var(--texto-2);font-size:14px}
+
+  /* ---- faturamento ---- */
+  .fat{padding:18px}
+  .cartao{background:var(--branco);border:1px solid var(--linha);padding:16px;margin-bottom:14px}
+  .cartao h3{font-family:'Barlow Condensed',sans-serif;font-size:17px;color:var(--texto-2);
+    font-weight:600;letter-spacing:.04em;margin-bottom:6px}
+  .grande{font-size:33px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+  .sub{color:var(--texto-2);font-size:14px;margin-top:4px}
+
+  .barras{display:flex;align-items:flex-end;gap:2px;height:130px;margin-top:10px}
+  .barras div{flex:1;background:var(--ardosia);min-height:2px;border-radius:1px 1px 0 0}
+  .barras div.hoje{background:var(--ipe)}
+  .barras div.fraco{background:#B8C4CC}
+  .regua{display:flex;justify-content:space-between;color:var(--aluminio);font-size:11.5px;margin-top:4px}
+
+  .faixa{display:flex;justify-content:space-between;align-items:baseline;margin-top:8px}
+  .faixa div{text-align:center;flex:1}
+  .faixa .rot{color:var(--aluminio);font-size:12px;display:block}
+  .faixa .num{font-variant-numeric:tabular-nums;font-weight:600}
+  .faixa .centro .num{font-size:22px;color:var(--ipe)}
+
+  .linha-mes{display:flex;justify-content:space-between;padding:7px 0;
+    border-bottom:1px solid var(--linha);font-variant-numeric:tabular-nums;font-size:14.5px}
+  .linha-mes:last-child{border-bottom:none}
+  .linha-mes .neg{color:var(--atencao)}
+  .linha-mes .pos{color:var(--ok)}
+
+  /* ---- configuração ---- */
+  .cfg{padding:18px}
+  .cfg label{display:block;font-size:13px;color:var(--texto-2);font-weight:600;margin:14px 0 4px}
+  .cfg input{width:100%;padding:11px;border:1px solid var(--linha);background:var(--branco);font-size:15px}
+
+  .vazio{color:var(--texto-2);padding:50px 22px;text-align:center}
+  .carregando{color:var(--aluminio);padding:28px 18px;font-size:15px}
+
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="topo">
+  <h1 id="titulo">DESPACHO</h1>
+  <div class="conta" id="conta"></div>
+  <button onclick="recarregar()">atualizar</button>
+</div>
+<div class="aviso" id="aviso" style="display:none"></div>
+
+<main>
+  <section class="tela ativa" id="tela-despacho">
+    <div id="lista"><div class="carregando">Carregando…</div></div>
+    <div class="detalhe" id="detalhe" style="display:none"></div>
+  </section>
+
+  <section class="tela" id="tela-faturamento">
+    <div class="fat" id="fat"><div class="carregando">Carregando…</div></div>
+  </section>
+
+  <section class="tela" id="tela-config">
+    <div class="cfg">
+      <h2 style="font-family:'Barlow Condensed';font-size:21px">Configuração</h2>
+      <p class="nota">O endereço do motor e a chave. Sem isso o aplicativo não tem de onde buscar os dados.</p>
+      <label>Endereço do Web App (termina em /exec)</label>
+      <input id="cfg-url" type="url" placeholder="https://script.google.com/macros/s/.../exec">
+      <label>Chave</label>
+      <input id="cfg-chave" type="text" placeholder="a mesma que está no CHAVE_APP">
+      <button class="principal" style="margin-top:20px" onclick="salvarConfig()">SALVAR</button>
+      <p class="nota" id="cfg-status" style="margin-top:12px"></p>
+    </div>
+  </section>
+</main>
+
+<nav class="abas">
+  <button id="aba-despacho" aria-selected="true" onclick="irPara('despacho')">
+    <span class="ic">📦</span>DESPACHO</button>
+  <button id="aba-faturamento" aria-selected="false" onclick="irPara('faturamento')">
+    <span class="ic">📈</span>FATURAMENTO</button>
+  <button id="aba-config" aria-selected="false" onclick="irPara('config')">
+    <span class="ic">⚙️</span>AJUSTES</button>
+</nav>
+
+<script>
+// ===========================================================================
+// O ESSENCIAL
+// ===========================================================================
+// O aplicativo não sabe nada sozinho: ele pergunta tudo ao motor no Apps
+// Script. O endereço e a chave ficam guardados no próprio aparelho, então
+// cada celular é configurado uma vez e pronto.
+var cfg = {
+  url: localStorage.getItem('app_url') || '',
+  chave: localStorage.getItem('app_chave') || ''
+};
+
+var PEDIDOS = [], atual = null, cotacao = null, escolha = null, resultado = null;
+var FAT = null;
+
+var CORES = { SINIL:'#1E5F8C', AZURELOG:'#5B4B8A', ITOUPAVA:'#2C6E4E',
+  TRANSOLIVEIRA:'#A8511E', ARLETE:'#8C2F39', TW:'#0F766E', RODONAVES:'#C07C3A' };
+
+function $(id){ return document.getElementById(id); }
+function cor(t){ return CORES[t] || '#5B6B7A'; }
+function brl(n){ return 'R$ ' + Number(n||0).toFixed(2).replace('.',',').replace(/\B(?=(\d{3})+(?!\d))/g,'.'); }
+function curto(n){
+  n = Number(n||0);
+  if (n >= 1000000) return 'R$ ' + (n/1000000).toFixed(2).replace('.',',') + ' mi';
+  if (n >= 1000) return 'R$ ' + Math.round(n/1000) + ' mil';
+  return brl(n);
+}
+function esc(t){ return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function cpfFmt(c){
+  c = String(c||'').replace(/\D/g,'');
+  if (c.length===11) return c.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,'$1.$2.$3-$4');
+  if (c.length===14) return c.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/,'$1.$2.$3/$4-$5');
+  return c;
+}
+function cepFmt(c){
+  c = String(c||'').replace(/\D/g,'');
+  return c.length===8 ? c.replace(/(\d{5})(\d{3})/,'$1-$2') : c;
+}
+
+// ---------------------------------------------------------------------------
+// A conversa com o motor
+// ---------------------------------------------------------------------------
+async function pedir(api, extras) {
+  if (!cfg.url || !cfg.chave) throw new Error('Falta configurar o endereço e a chave.');
+  var u = cfg.url + '?api=' + encodeURIComponent(api) + '&chave=' + encodeURIComponent(cfg.chave);
+  for (var k in (extras||{})) {
+    if (extras[k] !== undefined && extras[k] !== null) {
+      u += '&' + k + '=' + encodeURIComponent(extras[k]);
+    }
+  }
+  var r = await fetch(u, { redirect: 'follow' });
+  if (!r.ok) throw new Error('o motor respondeu ' + r.status);
+  var d = await r.json();
+  if (d.erro) throw new Error(d.erro);
+  return d;
+}
+
+// ---------------------------------------------------------------------------
+// Navegação
+// ---------------------------------------------------------------------------
+function irPara(qual) {
+  ['despacho','faturamento','config'].forEach(function(x){
+    $('tela-'+x).classList.toggle('ativa', x===qual);
+    $('aba-'+x).setAttribute('aria-selected', x===qual ? 'true' : 'false');
+  });
+  $('titulo').textContent = qual==='faturamento' ? 'FATURAMENTO'
+                          : qual==='config' ? 'AJUSTES' : 'DESPACHO';
+  if (qual==='faturamento' && !FAT) carregarFaturamento();
+  if (qual==='despacho' && !PEDIDOS.length) carregarPedidos();
+}
+
+function recarregar() {
+  var qual = $('tela-faturamento').classList.contains('ativa') ? 'faturamento' : 'despacho';
+  if (qual==='faturamento') { FAT = null; carregarFaturamento(); }
+  else { carregarPedidos(true); }
+}
+
+// ===========================================================================
+// DESPACHO
+// ===========================================================================
+async function carregarPedidos(forcar) {
+  $('detalhe').style.display = 'none';
+  $('lista').style.display = '';
+  $('lista').innerHTML = '<div class="carregando">Buscando pedidos…</div>';
+  $('conta').textContent = '';
+  try {
+    var d = await pedir('pedidos', { forcar: forcar ? 1 : 0 });
+    PEDIDOS = d.pedidos || [];
+    montarLista();
+  } catch (e) {
+    $('lista').innerHTML = '<div class="vazio">' + esc(e.message) + '</div>';
+  }
+}
+
+function montarLista() {
+  $('conta').textContent = PEDIDOS.length + (PEDIDOS.length===1?' pedido':' pedidos');
+  if (!PEDIDOS.length) {
+    $('lista').innerHTML = '<div class="vazio">Nenhum pedido esperando despacho.</div>';
+    return;
+  }
+  $('lista').innerHTML = PEDIDOS.map(function(p,i){
+    var resumo = p.itens.map(function(x){ return x.qtd+'× '+x.nome; }).join(' + ');
+    var classe = p.dias>=4 ? 'espera-2' : p.dias>=2 ? 'espera-1' : '';
+    return '<button class="pedido '+classe+'" onclick="abrir('+i+')">'+
+      '<div class="topo-l"><span class="nome">'+esc(p.cliente)+'</span>'+
+      '<span class="valor">'+brl(p.total)+'</span></div>'+
+      '<div class="oque">'+esc(resumo)+'</div>'+
+      '<div class="rodape"><span class="loja" style="background:'+p.lojaCor+'">'+esc(p.lojaCurto)+'</span>'+
+      '<span class="chip">'+p.peso+' kg</span>'+
+      (p.volumes>1 ? '<span class="chip">'+p.volumes+' volumes</span>' : '')+
+      (p.dias>=2 ? '<span class="espera">há '+p.dias+' dias</span>' : '')+
+      '</div></button>';
+  }).join('');
+}
+
+function abrir(i) {
+  atual = i; cotacao = null; escolha = null; resultado = null;
+  $('lista').style.display = 'none';
+  $('detalhe').style.display = '';
+  window.scrollTo(0,0);
+  desenhar();
+}
+
+function voltar() {
+  $('detalhe').style.display = 'none';
+  $('lista').style.display = '';
+}
+
+function desenhar() {
+  var p = PEDIDOS[atual];
+  var d = (cotacao && cotacao.destino) || null;
+  var h = '<button class="voltar" onclick="voltar()">← pedidos</button>';
+
+  h += '<div class="cabeca"><span class="loja" style="background:'+p.lojaCor+'">'+esc(p.lojaNome)+'</span>'+
+       '<h2>'+esc(p.cliente)+'</h2>';
+  if (d) {
+    h += '<div class="end">'+esc(d.endereco)+'<br>'+esc(d.cidade)+', '+esc(d.uf)+
+         ' — CEP '+cepFmt(d.cep)+
+         (d.recebe && d.recebe!==p.cliente ? '<br>recebe: '+esc(d.recebe) : '')+'</div>';
+  }
+  var doc = (d && d.cpf) || p.cpf || '';
+  h += '<div class="doc">venda '+p.ids.join(' / ')+' &nbsp; '+
+       (doc ? 'CPF '+cpfFmt(doc) : '<span class="sem-cpf">sem CPF</span>')+'</div></div>';
+
+  h += p.itens.map(function(x){
+    return '<div class="item"><div class="qtd">'+x.qtd+'×</div><div style="flex:1">'+esc(x.nome)+
+      '<div class="sku">SKU '+esc(x.sku||'?')+'</div></div>'+
+      '<div class="preco">'+brl(x.valor)+'</div></div>';
+  }).join('');
+
+  h += '<div class="carga"><div><span>peso</span>'+p.peso+' kg</div>'+
+       '<div><span>cubagem</span>'+Number(p.cubagem).toFixed(4).replace('.',',')+' m³</div>'+
+       '<div><span>volumes</span>'+p.volumes+'</div>'+
+       '<div><span>nota</span>'+brl(p.total)+'</div></div>';
+
+  if (!cotacao) {
+    h += '<button class="principal" id="btn-cotar" onclick="cotar()">COTAR FRETE</button>';
+  } else {
+    h += montarCotacoes();
+    if (escolha) h += montarEnvio(p);
+  }
+
+  if (resultado) {
+    h += '<div class="feito'+(resultado.email?'':' falhou')+'"><h3>'+
+         (resultado.email?'E-mail enviado':'Não enviou')+'</h3><ul>'+
+         (resultado.avisos||[]).map(function(a){ return '<li>'+esc(a)+'</li>'; }).join('')+
+         '</ul></div>';
+  }
+  $('detalhe').innerHTML = h;
+}
+
+async function cotar() {
+  var b = $('btn-cotar');
+  b.disabled = true; b.textContent = 'CONSULTANDO…';
+  var p = PEDIDOS[atual];
+  try {
+    cotacao = await pedir('cotar', { loja: p.loja, pedido: p.ids[0] });
+    desenhar();
+  } catch (e) {
+    cotacao = { cotadas:[], manuais:[], recusadas:[], avisos:['Falhou: '+e.message] };
+    desenhar();
+  }
+}
+
+function montarCotacoes() {
+  var h = '';
+  var d = cotacao.destino || {};
+
+  if (cotacao.cotadas.length) {
+    h += '<div class="secao">Quem atende '+esc(d.cidade||'')+'</div>';
+    h += cotacao.cotadas.map(function(c,i){
+      var melhor = (i===0);
+      return '<button class="transp'+(melhor?' melhor':'')+'" aria-pressed="'+
+        (escolha&&escolha.t===c.t)+'" onclick="escolher(\''+c.t+'\')">'+
+        '<div class="marca" style="background:'+cor(c.t)+'">'+c.t.charAt(0)+'</div>'+
+        '<div class="meio"><div class="nome">'+c.t+'</div>'+
+        (c.obs ? '<div class="obs">'+esc(c.obs)+'</div>'
+               : (melhor?'<div class="obs neutra">mais barata</div>':''))+'</div>'+
+        '<div class="dir"><div class="v'+(c.caro?' caro':'')+'">'+brl(c.v)+'</div>'+
+        '<div class="prazo">'+(c.prazo?c.prazo+' dias':'')+'</div></div></button>';
+    }).join('');
+  }
+
+  (cotacao.avisos||[]).forEach(function(a){ h += '<div class="nota alerta">'+esc(a)+'</div>'; });
+
+  if (cotacao.manuais && cotacao.manuais.length) {
+    h += '<div class="secao">Cotar por fora</div>';
+    h += cotacao.manuais.map(function(m){
+      return '<div class="transp"><div class="marca" style="background:'+cor(m.t)+'">'+
+        m.t.charAt(0)+'</div><div class="meio"><div class="nome">'+m.t+'</div>'+
+        '<div class="obs neutra">'+esc(m.obs||'sem cotação automática')+'</div></div>'+
+        '<div class="dir"><input type="text" inputmode="decimal" placeholder="0,00" '+
+        'style="width:100px;padding:7px;text-align:right;border:1px solid var(--linha)" '+
+        'onchange="escolherManual(\''+m.t+'\',this.value)"></div></div>';
+    }).join('');
+  }
+
+  if (cotacao.recusadas && cotacao.recusadas.length) {
+    h += '<div class="secao">Não atendem</div>';
+    h += cotacao.recusadas.map(function(r){
+      return '<div class="transp recusada"><div class="marca">'+r.t.charAt(0)+'</div>'+
+        '<div class="meio"><div class="nome">'+r.t+'</div>'+
+        '<div class="obs neutra">'+esc(r.msg||'')+'</div></div></div>';
+    }).join('');
+  }
+  return h;
+}
+
+function escolher(t) {
+  escolha = cotacao.cotadas.filter(function(c){ return c.t===t; })[0];
+  desenhar();
+  setTimeout(function(){
+    var e = $('escopo'); if (e) e.scrollIntoView({behavior:'smooth', block:'center'});
+  }, 60);
+}
+
+function escolherManual(t, valor) {
+  var v = parseFloat(String(valor).replace(/\./g,'').replace(',','.'));
+  if (!v || v<=0) return;
+  escolha = { t:t, v:v, prazo:null };
+  desenhar();
+}
+
+function montarEnvio(p) {
+  var base = cotacao.escopoBase || '';
+  var texto = base + '\n\nVALOR FRETE: ' + brl(escolha.v) +
+    '\nVALOR TOTAL NF: ' + brl(p.total + escolha.v) +
+    '\nTRANSPORTADORA: ' + escolha.t +
+    (escolha.cotacao ? '\nNUMERO DA COTACAO: ' + escolha.cotacao : '') +
+    (escolha.prazo ? '\nPRAZO: ' + escolha.prazo + ' dias uteis' : '');
+
+  return '<div class="secao">Confira antes de enviar</div>'+
+    '<textarea class="escopo" id="escopo">'+esc(texto)+'</textarea>'+
+    '<button class="principal enviar" id="btn-enviar" onclick="enviar()">ENVIAR POR '+escolha.t+'</button>';
+}
+
+async function enviar() {
+  var b = $('btn-enviar');
+  b.disabled = true; b.textContent = 'ENVIANDO…';
+  var p = PEDIDOS[atual];
+  try {
+    resultado = await pedir('enviar', {
+      loja: p.loja, pedido: p.ids[0], transp: escolha.t,
+      frete: escolha.v, escopo: $('escopo').value
+    });
+  } catch (e) {
+    resultado = { email:false, avisos:['Falhou: '+e.message] };
+  }
+  desenhar();
+}
+
+// ===========================================================================
+// FATURAMENTO
+// ===========================================================================
+async function carregarFaturamento() {
+  $('fat').innerHTML = '<div class="carregando">Carregando…</div>';
+  try {
+    FAT = await pedir('faturamento', {});
+    montarFaturamento();
+  } catch (e) {
+    $('fat').innerHTML = '<div class="vazio">'+esc(e.message)+'</div>';
+  }
+}
+
+function montarFaturamento() {
+  var f = FAT;
+  var maior = Math.max.apply(null, f.serie.map(function(x){ return x.valor; })) || 1;
+  var hoje = new Date().getDate();
+
+  var barras = f.serie.map(function(x){
+    var alt = Math.round((x.valor / maior) * 100);
+    // o dia corrente ainda está acontecendo: aparece em ipê, e mais claro
+    // quando o valor está bem abaixo da média, para não parecer queda
+    var classe = x.dia===hoje ? 'hoje' : (x.valor < maior*0.2 ? 'fraco' : '');
+    return '<div class="'+classe+'" style="height:'+Math.max(2,alt)+'%" '+
+           'title="dia '+x.dia+': '+brl(x.valor)+'"></div>';
+  }).join('');
+
+  var h = '';
+
+  h += '<div class="cartao"><h3>ACUMULADO — '+esc(f.mes)+'</h3>'+
+       '<div class="grande">'+brl(f.acumulado)+'</div>'+
+       '<div class="sub">média de '+brl(f.mediaDiaria)+' por dia, em '+
+       f.diasFechados+' dia(s) fechado(s)'+
+       (f.hoje ? ' · hoje já: '+brl(f.hoje) : '')+'</div>'+
+       '<div class="barras">'+barras+'</div>'+
+       '<div class="regua"><span>dia 1</span><span>dia '+
+       (f.serie.length?f.serie[f.serie.length-1].dia:'')+'</span></div></div>';
+
+  h += '<div class="cartao"><h3>PROJEÇÃO DE FECHAMENTO</h3>'+
+       '<div class="faixa">'+
+       '<div><span class="rot">piso</span><span class="num">'+curto(f.projecao.piso)+'</span></div>'+
+       '<div class="centro"><span class="rot">provável</span><span class="num">'+curto(f.projecao.centro)+'</span></div>'+
+       '<div><span class="rot">teto</span><span class="num">'+curto(f.projecao.teto)+'</span></div>'+
+       '</div>'+
+       '<div class="sub" style="margin-top:10px">A distância entre o piso e o teto é a '+
+       'informação: ela mostra o quanto os meses anteriores variaram na segunda metade.</div></div>';
+
+  if (f.anteriores && f.anteriores.length) {
+    h += '<div class="cartao"><h3>NO MESMO DIA DOS MESES ANTERIORES</h3>';
+    f.anteriores.forEach(function(m){
+      var dif = f.acumulado - m.ateEsteDia;
+      var pct = m.ateEsteDia ? Math.round((dif/m.ateEsteDia)*100) : 0;
+      h += '<div class="linha-mes"><span>'+esc(m.nome)+'</span>'+
+           '<span>'+brl(m.ateEsteDia)+' <span class="'+(dif>=0?'pos':'neg')+'">'+
+           (dif>=0?'+':'')+pct+'%</span></span></div>';
+    });
+    f.anteriores.forEach(function(m){
+      h += '<div class="linha-mes" style="color:var(--aluminio)"><span>'+esc(m.nome)+
+           ' fechou</span><span>'+brl(m.total)+'</span></div>';
+    });
+    h += '</div>';
+  }
+
+  $('fat').innerHTML = h;
+  $('conta').textContent = '';
+}
+
+// ===========================================================================
+// CONFIGURAÇÃO
+// ===========================================================================
+function salvarConfig() {
+  cfg.url = $('cfg-url').value.trim();
+  cfg.chave = $('cfg-chave').value.trim();
+  localStorage.setItem('app_url', cfg.url);
+  localStorage.setItem('app_chave', cfg.chave);
+  $('cfg-status').textContent = 'Conferindo…';
+  pedir('ping', {})
+    .then(function(){ $('cfg-status').textContent = 'Funcionando. Pode usar as outras abas.'; PEDIDOS=[]; FAT=null; })
+    .catch(function(e){ $('cfg-status').textContent = 'Não consegui: ' + e.message; });
+}
+
+// ===========================================================================
+// O ARRANQUE
+// ===========================================================================
+$('cfg-url').value = cfg.url;
+$('cfg-chave').value = cfg.chave;
+
+if (!cfg.url || !cfg.chave) {
+  irPara('config');
+  $('aviso').style.display = '';
+  $('aviso').textContent = 'Primeiro uso: ponha o endereço e a chave aqui embaixo.';
+} else {
+  carregarPedidos();
+}
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(function(){});
+}
+</script>
+</body>
+</html>
