@@ -216,6 +216,7 @@ var cfg = {
 };
 
 var PEDIDOS = [], atual = null, cotacao = null, escolha = null, resultado = null;
+var cotando = false;
 var FAT = null;
 
 var CORES = { SINIL:'#1E5F8C', AZURELOG:'#5B4B8A', ITOUPAVA:'#2C6E4E',
@@ -291,7 +292,9 @@ async function carregarPedidos(forcar) {
   try {
     var d = await pedir('pedidos', { forcar: forcar ? 1 : 0 });
     PEDIDOS = d.pedidos || [];
+    if (forcar) cotacoesProntas = {};   // cotação tem validade; não vale guardar entre atualizações
     montarLista();
+    prepararCotacoes();
   } catch (e) {
     $('lista').innerHTML = '<div class="vazio">' + esc(e.message) + '</div>';
   }
@@ -310,6 +313,8 @@ function montarLista() {
       '<div class="topo-l"><span class="nome">'+esc(p.cliente)+'</span>'+
       '<span class="valor">'+brl(p.total)+'</span></div>'+
       '<div class="oque">'+esc(resumo)+'</div>'+
+      (p.cidade ? '<div class="oque" style="color:var(--aluminio)">'+
+                  esc(p.cidade)+', '+esc(p.uf)+'</div>' : '')+
       '<div class="rodape"><span class="loja" style="background:'+p.lojaCor+'">'+esc(p.lojaCurto)+'</span>'+
       '<span class="chip">'+p.peso+' kg</span>'+
       (p.volumes>1 ? '<span class="chip">'+p.volumes+' volumes</span>' : '')+
@@ -318,28 +323,88 @@ function montarLista() {
   }).join('');
 }
 
+// COTA SOZINHO AO ABRIR
+//   A cotação leva alguns segundos — o motor busca o endereço no Mercado
+//   Livre e consulta seis transportadoras. Esperando você tocar em "cotar",
+//   esse tempo é passado olhando para a tela parada.
+//
+//   Disparando no instante em que o pedido abre, o tempo corre enquanto você
+//   confere os itens e o peso. Quando chega lá embaixo, já está pronto.
+//
+//   Guardamos por pedido: voltar para a lista e abrir de novo não recota.
+var cotacoesProntas = {};
+
+/**
+ * PREPARA AS COTAÇÕES EM SEGUNDO PLANO
+ *
+ *   Assim que a lista chega, vai cotando pedido por pedido, sem você pedir.
+ *   Quando abrir qualquer um, já está pronto.
+ *
+ *   UMA DE CADA VEZ, de propósito: disparar oito juntas faria o motor do
+ *   Apps Script engasgar e ainda castigaria as transportadoras com oito
+ *   levas simultâneas. Em fila, cada uma leva o tempo normal e no fim de
+ *   meio minuto todas estão prontas.
+ *
+ *   O motor guarda cada cotação por meia hora, então isso não vira uma
+ *   enxurrada de registros no sistema deles a cada vez que você abre o app.
+ */
+var preparando = false;
+
+async function prepararCotacoes() {
+  if (preparando) return;
+  preparando = true;
+
+  for (var i = 0; i < PEDIDOS.length; i++) {
+    var p = PEDIDOS[i];
+    if (cotacoesProntas[p.ids[0]]) continue;
+
+    try {
+      var d = await pedir('cotar', { loja: p.loja, pedido: p.ids[0] });
+      cotacoesProntas[p.ids[0]] = d;
+
+      // se você já está justamente nesse pedido, mostra na hora
+      if (PEDIDOS[atual] && PEDIDOS[atual].ids[0] === p.ids[0] && !cotacao) {
+        cotacao = d; cotando = false; desenhar();
+      }
+    } catch (e) { /* segue para o próximo: um erro não trava a fila */ }
+  }
+  preparando = false;
+}
+
 function abrir(i) {
-  atual = i; cotacao = null; escolha = null; resultado = null;
+  atual = i; escolha = null; resultado = null;
+  var p = PEDIDOS[i];
+  cotacao = cotacoesProntas[p.ids[0]] || null;
+  cotando = !cotacao;
+
   $('lista').style.display = 'none';
   $('detalhe').style.display = '';
   window.scrollTo(0,0);
   desenhar();
+
+  if (!cotacao) cotar();
 }
 
 function voltar() {
+  cotando = false;
   $('detalhe').style.display = 'none';
   $('lista').style.display = '';
 }
 
 function desenhar() {
   var p = PEDIDOS[atual];
-  var d = (cotacao && cotacao.destino) || null;
+  // o endereço vem da LISTA, não da cotação: assim aparece no instante em
+  // que o pedido abre, sem esperar as transportadoras responderem
+  var d = (cotacao && cotacao.destino) || {
+    endereco: p.endereco, cidade: p.cidade, uf: p.uf,
+    cep: p.cepDestino, recebe: p.recebe, telefone: p.telefone, cpf: p.cpf
+  };
   var h = '<button class="voltar" onclick="voltar()">← pedidos</button>';
 
   h += '<div class="cabeca"><span class="loja" style="background:'+p.lojaCor+'">'+esc(p.lojaNome)+'</span>'+
        '<h2>'+esc(p.cliente)+'</h2>';
-  if (d) {
-    h += '<div class="end">'+esc(d.endereco)+'<br>'+esc(d.cidade)+', '+esc(d.uf)+
+  if (d.endereco || d.cidade) {
+    h += '<div class="end">'+esc(d.endereco||'')+'<br>'+esc(d.cidade||'')+', '+esc(d.uf||'')+
          ' — CEP '+cepFmt(d.cep)+
          (d.recebe && d.recebe!==p.cliente ? '<br>recebe: '+esc(d.recebe) : '')+'</div>';
   }
@@ -359,7 +424,9 @@ function desenhar() {
        '<div><span>nota</span>'+brl(p.total)+'</div></div>';
 
   if (!cotacao) {
-    h += '<button class="principal" id="btn-cotar" onclick="cotar()">COTAR FRETE</button>';
+    h += cotando
+      ? '<button class="principal" disabled>CONSULTANDO AS TRANSPORTADORAS…</button>'
+      : '<button class="principal" id="btn-cotar" onclick="cotar()">COTAR FRETE</button>';
   } else {
     h += montarCotacoes();
     if (escolha) h += montarEnvio(p);
@@ -375,16 +442,23 @@ function desenhar() {
 }
 
 async function cotar() {
-  var b = $('btn-cotar');
-  b.disabled = true; b.textContent = 'CONSULTANDO…';
   var p = PEDIDOS[atual];
+  var quem = p.ids[0];
+  cotando = true;
+  desenhar();
+
   try {
-    cotacao = await pedir('cotar', { loja: p.loja, pedido: p.ids[0] });
-    desenhar();
+    var d = await pedir('cotar', { loja: p.loja, pedido: quem });
+    cotacoesProntas[quem] = d;
+    // se você já saiu deste pedido, guarda e não mexe na tela
+    if (!PEDIDOS[atual] || PEDIDOS[atual].ids[0] !== quem) return;
+    cotacao = d;
   } catch (e) {
+    if (!PEDIDOS[atual] || PEDIDOS[atual].ids[0] !== quem) return;
     cotacao = { cotadas:[], manuais:[], recusadas:[], avisos:['Falhou: '+e.message] };
-    desenhar();
   }
+  cotando = false;
+  desenhar();
 }
 
 function montarCotacoes() {
