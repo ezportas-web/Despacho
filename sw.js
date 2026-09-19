@@ -11,7 +11,7 @@
  * TROCOU O index.html? Mude o número da versão abaixo. É isso que faz o
  * celular buscar a versão nova em vez de continuar com a antiga.
  */
-const VERSAO = 'despacho-v5';
+const VERSAO = 'despacho-v6';
 const CASCA = [
   './',
   './index.html',
