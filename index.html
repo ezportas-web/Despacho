@@ -349,20 +349,47 @@ var cotacoesProntas = {};
  *   enxurrada de registros no sistema deles a cada vez que você abre o app.
  */
 var preparando = false;
+var esperandoVoce = false;   // true enquanto há uma cotação que você pediu
 
+/**
+ * O APPS SCRIPT ATENDE UMA POR VEZ
+ *
+ *   Ele serializa as requisições do mesmo usuário. Então a fila de
+ *   pré-cotação, feita para ganhar tempo, fazia o oposto: o pedido que você
+ *   abriu ficava esperando atrás dos outros três, e a espera passava de um
+ *   minuto.
+ *
+ *   Agora a fila:
+ *     · só começa alguns segundos depois da lista carregar
+ *     · PARA quando você abre um pedido, e só volta quando a sua cotação
+ *       terminar
+ *     · prepara no máximo três, que é o que costuma render
+ *
+ *   O que você está olhando sempre tem a frente.
+ */
 async function prepararCotacoes() {
   if (preparando) return;
   preparando = true;
 
-  for (var i = 0; i < PEDIDOS.length; i++) {
+  // deixa a tela respirar antes de começar a trabalhar por baixo
+  await new Promise(function (r) { setTimeout(r, 4000); });
+
+  var feitos = 0;
+  for (var i = 0; i < PEDIDOS.length && feitos < 3; i++) {
+    // você abriu um pedido: a fila sai da frente
+    while (esperandoVoce) {
+      await new Promise(function (r) { setTimeout(r, 500); });
+    }
+
     var p = PEDIDOS[i];
     if (cotacoesProntas[p.ids[0]]) continue;
 
     try {
       var d = await pedir('cotar', { loja: p.loja, pedido: p.ids[0] });
       cotacoesProntas[p.ids[0]] = d;
+      feitos++;
 
-      // se você já está justamente nesse pedido, mostra na hora
+      // se você está justamente nesse pedido, mostra na hora
       if (PEDIDOS[atual] && PEDIDOS[atual].ids[0] === p.ids[0] && !cotacao) {
         cotacao = d; cotando = false; desenhar();
       }
@@ -445,6 +472,7 @@ async function cotar() {
   var p = PEDIDOS[atual];
   var quem = p.ids[0];
   cotando = true;
+  esperandoVoce = true;    // a fila de fundo sai da frente
   desenhar();
 
   try {
@@ -456,8 +484,13 @@ async function cotar() {
   } catch (e) {
     if (!PEDIDOS[atual] || PEDIDOS[atual].ids[0] !== quem) return;
     cotacao = { cotadas:[], manuais:[], recusadas:[], avisos:['Falhou: '+e.message] };
+  } finally {
+    // SOLTA A TRAVA EM QUALQUER SAÍDA
+    //   Sem isto, sair do pedido antes da resposta deixaria a fila de fundo
+    //   parada para sempre — o return lá em cima pula o resto da função.
+    cotando = false;
+    esperandoVoce = false;
   }
-  cotando = false;
   desenhar();
 }
 
