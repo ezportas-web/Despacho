@@ -498,7 +498,7 @@ function montarCotacoes() {
   var h = '';
   var d = cotacao.destino || {};
 
-  if (cotacao.cotadas.length) {
+  if (cotacao.cotadas.length || (cotacao.sobDemanda||[]).length) {
     h += '<div class="secao">Quem atende '+esc(d.cidade||'')+'</div>';
     h += cotacao.cotadas.map(function(c,i){
       var melhor = (i===0);
@@ -513,24 +513,34 @@ function montarCotacoes() {
     }).join('');
   }
 
+  /**
+   * A RODONAVES, SEM PREÇO ATÉ VOCÊ TOCAR
+   *
+   *   Ela fica junto das concorrentes, e não no "cotar por fora" — ali
+   *   embaixo significa cotar no sistema dela e digitar o valor aqui, que é
+   *   outra coisa. Ela cota sozinha; só não junto com as outras, porque é
+   *   lenta e fazia toda a cotação esperar por ela.
+   */
+  (cotacao.sobDemanda||[]).forEach(function(s){
+    h += '<button class="transp" onclick="cotarRodonaves()">'+
+      '<div class="marca" style="background:'+cor(s.t)+'">'+s.t.charAt(0)+'</div>'+
+      '<div class="meio"><div class="nome">'+s.t+'</div>'+
+      '<div class="obs neutra">toque para cotar</div></div>'+
+      '<div class="dir"><div class="v" style="font-size:17px;color:var(--aluminio)">cotar</div>'+
+      '</div></button>';
+  });
+
   (cotacao.avisos||[]).forEach(function(a){ h += '<div class="nota alerta">'+esc(a)+'</div>'; });
 
   if (cotacao.manuais && cotacao.manuais.length) {
     h += '<div class="secao">Cotar por fora</div>';
     h += cotacao.manuais.map(function(m){
-      // a Rodonaves fica fora da leva automática porque é lenta; aqui ela
-      // ganha um botão, e só cota quando você toca
-      var acao = m.sobDemanda
-        ? '<button class="principal" style="padding:9px 14px;font-size:15px" '+
-          'onclick="cotarRodonaves()">COTAR</button>'
-        : '<input type="text" inputmode="decimal" placeholder="0,00" '+
-          'style="width:100px;padding:7px;text-align:right;border:1px solid var(--linha)" '+
-          'onchange="escolherManual(\''+m.t+'\',this.value)">';
-
       return '<div class="transp"><div class="marca" style="background:'+cor(m.t)+'">'+
         m.t.charAt(0)+'</div><div class="meio"><div class="nome">'+m.t+'</div>'+
         '<div class="obs neutra">'+esc(m.obs||'sem cotação automática')+'</div></div>'+
-        '<div class="dir">'+acao+'</div></div>';
+        '<div class="dir"><input type="text" inputmode="decimal" placeholder="0,00" '+
+        'style="width:100px;padding:7px;text-align:right;border:1px solid var(--linha)" '+
+        'onchange="escolherManual(\''+m.t+'\',this.value)"></div></div>';
     }).join('');
   }
 
@@ -551,8 +561,8 @@ function montarCotacoes() {
  *   reordenada — se ela for a mais barata, vai para o topo.
  */
 async function cotarRodonaves() {
-  // tira o cartão dela dos manuais e avisa que está indo
-  cotacao.manuais = (cotacao.manuais||[]).filter(function(m){ return !m.sobDemanda; });
+  // sai da espera e avisa que está indo
+  cotacao.sobDemanda = [];
   cotacao.avisos = (cotacao.avisos||[]).concat(['Consultando a Rodonaves…']);
   desenhar();
 
