@@ -155,6 +155,16 @@
   .cfg label{display:block;font-size:13px;color:var(--texto-2);font-weight:600;margin:14px 0 4px}
   .cfg input{width:100%;padding:11px;border:1px solid var(--linha);background:var(--branco);font-size:15px}
 
+  .juntos{font-size:12.5px;font-weight:700;color:#fff;background:var(--ipe);
+    padding:2px 9px;border-radius:2px}
+
+  /* a barra que aparece enquanto o pedido é enviado */
+  .progresso{height:6px;background:var(--linha);border-radius:3px;overflow:hidden;margin-top:14px}
+  .progresso div{height:100%;width:30%;background:var(--ok);border-radius:3px;
+    animation:vaivem 1.2s ease-in-out infinite}
+  @keyframes vaivem{0%{margin-left:-30%}100%{margin-left:100%}}
+  .enviando{color:var(--texto-2);font-size:14px;margin-top:8px;text-align:center}
+
   .vazio{color:var(--texto-2);padding:50px 22px;text-align:center}
   .carregando{color:var(--aluminio);padding:28px 18px;font-size:15px}
 
@@ -217,6 +227,8 @@ var cfg = {
 
 var PEDIDOS = [], atual = null, cotacao = null, escolha = null, resultado = null;
 var cotando = false;
+var enviandoAgora = false;   // a barra de progresso está na tela
+var enviado = false;         // o pedido já foi — o botão não volta
 var FAT = null;
 
 var CORES = { SINIL:'#1E5F8C', AZURELOG:'#5B4B8A', ITOUPAVA:'#2C6E4E',
@@ -318,6 +330,7 @@ function montarLista() {
       '<div class="rodape"><span class="loja" style="background:'+p.lojaCor+'">'+esc(p.lojaCurto)+'</span>'+
       '<span class="chip">'+p.peso+' kg</span>'+
       (p.volumes>1 ? '<span class="chip">'+p.volumes+' volumes</span>' : '')+
+      (p.juntos>1 ? '<span class="juntos">'+p.juntos+' compras juntas</span>' : '')+
       (p.dias>=2 ? '<span class="espera">há '+p.dias+' dias</span>' : '')+
       '</div></button>';
   }).join('');
@@ -400,9 +413,11 @@ async function prepararCotacoes() {
 
 function abrir(i) {
   atual = i; escolha = null; resultado = null;
+  enviado = false; enviandoAgora = false;
   var p = PEDIDOS[i];
   cotacao = cotacoesProntas[p.ids[0]] || null;
   cotando = !cotacao;
+  pedidoNaTela = p;
 
   $('lista').style.display = 'none';
   $('detalhe').style.display = '';
@@ -416,10 +431,15 @@ function voltar() {
   cotando = false;
   $('detalhe').style.display = 'none';
   $('lista').style.display = '';
+  if (enviado) { enviado = false; montarLista(); }
 }
 
+var pedidoNaTela = null;   // guardado: depois de enviado, ele sai da lista
+
 function desenhar() {
-  var p = PEDIDOS[atual];
+  var p = PEDIDOS[atual] && !enviado ? PEDIDOS[atual] : pedidoNaTela;
+  if (!p) return;
+  pedidoNaTela = p;
   // o endereço vem da LISTA, não da cotação: assim aparece no instante em
   // que o pedido abre, sem esperar as transportadoras responderem
   var d = (cotacao && cotacao.destino) || {
@@ -436,6 +456,10 @@ function desenhar() {
          (d.recebe && d.recebe!==p.cliente ? '<br>recebe: '+esc(d.recebe) : '')+'</div>';
   }
   var doc = (d && d.cpf) || p.cpf || '';
+  if (p.juntos > 1) {
+    h += '<div class="nota alerta" style="margin-top:8px">'+p.juntos+
+         ' compras do mesmo comprador, no mesmo dia, juntadas numa entrega só.</div>';
+  }
   h += '<div class="doc">venda '+p.ids.join(' / ')+' &nbsp; '+
        (doc ? 'CPF '+cpfFmt(doc) : '<span class="sem-cpf">sem CPF</span>')+'</div></div>';
 
@@ -460,8 +484,9 @@ function desenhar() {
   }
 
   if (resultado) {
-    h += '<div class="feito'+(resultado.email?'':' falhou')+'"><h3>'+
-         (resultado.email?'E-mail enviado':'Não enviou')+'</h3><ul>'+
+    var ok = resultado.planilha || resultado.email;
+    h += '<div class="feito'+(ok?'':' falhou')+'"><h3>'+
+         (ok ? 'Pedido enviado' : 'Não enviou')+'</h3><ul>'+
          (resultado.avisos||[]).map(function(a){ return '<li>'+esc(a)+'</li>'; }).join('')+
          '</ul></div>';
   }
@@ -561,6 +586,7 @@ function montarCotacoes() {
  *   reordenada — se ela for a mais barata, vai para o topo.
  */
 async function cotarRodonaves() {
+  if (enviado) return;
   // sai da espera e avisa que está indo
   cotacao.sobDemanda = [];
   cotacao.avisos = (cotacao.avisos||[]).concat(['Consultando a Rodonaves…']);
@@ -624,23 +650,47 @@ function montarEnvio(p) {
     '\nPESO (KG): ' + peso +
     '\nVALOR DO FRETE: ' + brl(escolha.v);
 
+  // depois de enviado, o botão some: não existe segundo envio do mesmo pedido
+  if (enviado) return '';
+
+  var botao = enviandoAgora
+    ? '<div class="progresso"><div></div></div>'+
+      '<div class="enviando">Gravando na planilha, mandando o e-mail e avisando o comprador…</div>'
+    : '<button class="principal enviar" id="btn-enviar" onclick="enviar()">ENVIAR POR '+escolha.t+'</button>';
+
   return '<div class="secao">Confira antes de enviar</div>'+
-    '<textarea class="escopo" id="escopo">'+esc(texto)+'</textarea>'+
-    '<button class="principal enviar" id="btn-enviar" onclick="enviar()">ENVIAR POR '+escolha.t+'</button>';
+    '<textarea class="escopo" id="escopo">'+esc(texto)+'</textarea>'+ botao;
 }
 
 async function enviar() {
-  var b = $('btn-enviar');
-  b.disabled = true; b.textContent = 'ENVIANDO…';
   var p = PEDIDOS[atual];
+  // guarda o texto antes de redesenhar: a caixa some junto com o botão
+  var textoEscopo = $('escopo').value;
+
+  enviandoAgora = true;
+  desenhar();
+
   try {
     resultado = await pedir('enviar', {
       loja: p.loja, pedido: p.ids[0], transp: escolha.t,
       frete: escolha.v, cotacao: escolha.cotacao || '',
-      escopo: $('escopo').value
+      escopo: textoEscopo
     });
   } catch (e) {
-    resultado = { email:false, avisos:['Falhou: '+e.message] };
+    resultado = { email:false, planilha:false, avisos:['Falhou: '+e.message] };
+  }
+
+  enviandoAgora = false;
+
+  // SÓ SOME SE DEU CERTO
+  //   Se a gravação falhou, o botão volta, para você tentar de novo. Se
+  //   deu certo, ele não volta — um segundo toque criaria outra linha e
+  //   outro e-mail para o mesmo pedido.
+  if (resultado && (resultado.planilha || resultado.email)) {
+    enviado = true;
+    // tira da lista: já não está mais esperando despacho
+    PEDIDOS.splice(atual, 1);
+    delete cotacoesProntas[p.ids[0]];
   }
   desenhar();
 }
