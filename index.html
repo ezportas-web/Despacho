@@ -200,6 +200,16 @@
       <input id="cfg-chave" type="text" placeholder="a mesma que está no CHAVE_APP">
       <button class="principal" style="margin-top:20px" onclick="salvarConfig()">SALVAR</button>
       <p class="nota" id="cfg-status" style="margin-top:12px"></p>
+
+      <!-- A VERSÃO NA TELA
+           Em 23/09 passamos três vezes pelo mesmo mal-entendido: eu mandava
+           arquivo novo, ele ficava no computador, e a gente discutia um
+           comportamento que o celular nem tinha recebido. Com a versão à
+           vista, a conferência leva um segundo. -->
+      <p class="nota" style="margin-top:26px;opacity:.6">
+        versão <span id="cfg-versao">v10</span> &nbsp;·&nbsp;
+        <a href="#" onclick="forcarAtualizacao();return false;">buscar versão nova</a>
+      </p>
     </div>
   </section>
 </main>
@@ -228,6 +238,7 @@ var cfg = {
 var PEDIDOS = [], atual = null, cotacao = null, escolha = null, resultado = null;
 var cotando = false;
 var enviandoAgora = false;   // a barra de progresso está na tela
+var rodonavesCotando = false;   // ela demora; fica visível trabalhando
 var enviado = false;         // o pedido já foi — o botão não volta
 var FAT = null;
 
@@ -523,7 +534,12 @@ function montarCotacoes() {
   var h = '';
   var d = cotacao.destino || {};
 
-  if (cotacao.cotadas.length || (cotacao.sobDemanda||[]).length) {
+  if (rodonavesCotando) {
+    h += '<div class="nota alerta" style="margin-top:14px">'+
+         'Cotação em andamento, aguarde — a Rodonaves leva até um minuto.</div>';
+  }
+
+  if (cotacao.cotadas.length || (cotacao.sobDemanda||[]).length || rodonavesCotando) {
     h += '<div class="secao">Quem atende '+esc(d.cidade||'')+'</div>';
     h += cotacao.cotadas.map(function(c,i){
       var melhor = (i===0);
@@ -546,14 +562,27 @@ function montarCotacoes() {
    *   outra coisa. Ela cota sozinha; só não junto com as outras, porque é
    *   lenta e fazia toda a cotação esperar por ela.
    */
-  (cotacao.sobDemanda||[]).forEach(function(s){
-    h += '<button class="transp" onclick="cotarRodonaves()">'+
-      '<div class="marca" style="background:'+cor(s.t)+'">'+s.t.charAt(0)+'</div>'+
-      '<div class="meio"><div class="nome">'+s.t+'</div>'+
-      '<div class="obs neutra">toque para cotar</div></div>'+
-      '<div class="dir"><div class="v" style="font-size:17px;color:var(--aluminio)">cotar</div>'+
-      '</div></button>';
-  });
+  // ENQUANTO ELA TRABALHA, FICA À VISTA
+  //   A Rodonaves leva dezenas de segundos — um teste chegou a 54. Sem o
+  //   cartão de "cotando", ela sumia da tela e parecia que o toque não fez
+  //   nada, e você tocava de novo.
+  if (rodonavesCotando) {
+    h += '<div class="transp">'+
+      '<div class="marca" style="background:'+cor('RODONAVES')+'">R</div>'+
+      '<div class="meio"><div class="nome">RODONAVES</div>'+
+      '<div class="obs neutra">cotando… ela demora mesmo</div></div>'+
+      '<div class="dir"><div class="v" style="font-size:15px;color:var(--texto-2)">aguarde</div>'+
+      '</div></div>';
+  } else {
+    (cotacao.sobDemanda||[]).forEach(function(s){
+      h += '<button class="transp" onclick="cotarRodonaves()">'+
+        '<div class="marca" style="background:'+cor(s.t)+'">'+s.t.charAt(0)+'</div>'+
+        '<div class="meio"><div class="nome">'+s.t+'</div>'+
+        '<div class="obs neutra">toque para cotar</div></div>'+
+        '<div class="dir"><div class="v" style="font-size:17px;color:var(--aluminio)">cotar</div>'+
+        '</div></button>';
+    });
+  }
 
   (cotacao.avisos||[]).forEach(function(a){ h += '<div class="nota alerta">'+esc(a)+'</div>'; });
 
@@ -587,9 +616,9 @@ function montarCotacoes() {
  */
 async function cotarRodonaves() {
   if (enviado) return;
-  // sai da espera e avisa que está indo
+  // sai da espera e passa a mostrar que está trabalhando
   cotacao.sobDemanda = [];
-  cotacao.avisos = (cotacao.avisos||[]).concat(['Consultando a Rodonaves…']);
+  rodonavesCotando = true;
   desenhar();
 
   var p = PEDIDOS[atual];
@@ -598,22 +627,29 @@ async function cotarRodonaves() {
   try {
     var d = await pedir('rodonaves', { loja: p.loja, pedido: p.ids[0] });
 
-    cotacao.avisos = (cotacao.avisos||[]).filter(function(a){
-      return a !== 'Consultando a Rodonaves…';
-    });
-    cotacao.cotadas = (cotacao.cotadas||[]).concat(d.cotadas||[]);
-    cotacao.manuais = (cotacao.manuais||[]).concat(d.manuais||[]);
-    cotacao.recusadas = (cotacao.recusadas||[]).concat(d.recusadas||[]);
+    // APAGA O QUE HAVIA DELA ANTES
+    //   Uma tentativa que falhou na rede deixava o cartão "a rede da
+    //   Rodonaves não respondeu" em cotar por fora; a tentativa seguinte,
+    //   que deu certo, entrava por cima — e ela aparecia duas vezes.
+    function semRodonaves(lista) {
+      return (lista||[]).filter(function(x){ return x.t !== 'RODONAVES'; });
+    }
+    cotacao.cotadas = semRodonaves(cotacao.cotadas);
+    cotacao.manuais = semRodonaves(cotacao.manuais);
+    cotacao.recusadas = semRodonaves(cotacao.recusadas);
+
+    cotacao.cotadas = cotacao.cotadas.concat(d.cotadas||[]);
+    cotacao.manuais = cotacao.manuais.concat(d.manuais||[]);
+    cotacao.recusadas = cotacao.recusadas.concat(d.recusadas||[]);
     cotacao.cotadas.sort(function(a,b){ return a.v - b.v; });
 
     // guarda, para não recotar se você sair e voltar
     cotacoesProntas[p.ids[0]] = cotacao;
   } catch (e) {
-    cotacao.avisos = (cotacao.avisos||[]).filter(function(a){
-      return a !== 'Consultando a Rodonaves…';
-    }).concat(['Rodonaves falhou: '+e.message]);
+    cotacao.avisos = (cotacao.avisos||[]).concat(['Rodonaves falhou: '+e.message]);
   } finally {
     esperandoVoce = false;
+    rodonavesCotando = false;
   }
   desenhar();
 }
@@ -765,6 +801,26 @@ function montarFaturamento() {
 // ===========================================================================
 // CONFIGURAÇÃO
 // ===========================================================================
+/**
+ * Joga fora a casca guardada e recarrega.
+ *   O service worker guarda a tela para o aplicativo abrir sem internet, e
+ *   às vezes segura a versão antiga mais do que devia. Isto força a troca
+ *   sem precisar desinstalar.
+ */
+async function forcarAtualizacao() {
+  try {
+    if ('caches' in window) {
+      var nomes = await caches.keys();
+      await Promise.all(nomes.map(function (n) { return caches.delete(n); }));
+    }
+    if (navigator.serviceWorker) {
+      var regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(function (r) { return r.unregister(); }));
+    }
+  } catch (e) {}
+  location.reload(true);
+}
+
 function salvarConfig() {
   cfg.url = $('cfg-url').value.trim();
   cfg.chave = $('cfg-chave').value.trim();
