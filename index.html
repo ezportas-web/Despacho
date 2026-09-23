@@ -206,8 +206,16 @@
            arquivo novo, ele ficava no computador, e a gente discutia um
            comportamento que o celular nem tinha recebido. Com a versão à
            vista, a conferência leva um segundo. -->
+      <!-- TESTE DA ROTA DA RODONAVES
+           O botão dela na tela de despacho não dá em nada quando o motor
+           implantado é anterior à rota. Isto pergunta direto e mostra a
+           resposta crua, sem precisar abrir pedido. -->
+      <button class="principal" style="margin-top:24px;background:var(--aluminio)"
+              onclick="testarRotaRodonaves()">TESTAR A ROTA DA RODONAVES</button>
+      <p class="nota" id="teste-rota" style="margin-top:10px;white-space:pre-wrap"></p>
+
       <p class="nota" style="margin-top:26px;opacity:.6">
-        versão <span id="cfg-versao">v10</span> &nbsp;·&nbsp;
+        versão <span id="cfg-versao">v11</span> &nbsp;·&nbsp;
         <a href="#" onclick="forcarAtualizacao();return false;">buscar versão nova</a>
       </p>
     </div>
@@ -819,6 +827,48 @@ async function forcarAtualizacao() {
     }
   } catch (e) {}
   location.reload(true);
+}
+
+/**
+ * Pergunta ao motor se a rota da Rodonaves existe, e mostra a resposta.
+ *   Se vier "rota desconhecida" ou erro, o APP_API.gs implantado é anterior
+ *   ao botão — e é por isso que o toque não dá em nada.
+ */
+async function testarRotaRodonaves() {
+  var alvo = $('teste-rota');
+  alvo.textContent = 'perguntando ao motor…';
+
+  try {
+    var lista = await pedir('pedidos', {});
+    if (!lista || !lista.length) {
+      alvo.textContent = 'Não há pedido aberto para testar.';
+      return;
+    }
+
+    var p = lista[0];
+    alvo.textContent = 'cotando a Rodonaves no pedido de ' + p.cliente +
+                       '… ela demora até um minuto.';
+
+    var r = await pedir('rodonaves', { loja: p.loja, pedido: p.ids[0] });
+
+    if (r && r.erro) { alvo.textContent = 'O motor respondeu: ' + r.erro; return; }
+
+    var partes = [];
+    (r.cotadas || []).forEach(function (c) {
+      partes.push('COTOU R$ ' + Number(c.v).toFixed(2) +
+                  (c.prazo ? '  ' + c.prazo + ' dias' : '') +
+                  (c.cotacao ? '  cotação ' + c.cotacao : ''));
+    });
+    (r.recusadas || []).forEach(function (x) { partes.push('recusou: ' + x.msg); });
+    (r.manuais || []).forEach(function (x) { partes.push('para digitar: ' + x.obs); });
+
+    alvo.textContent = partes.length ? partes.join('\n') : 'respondeu vazio.';
+
+  } catch (e) {
+    alvo.textContent = 'FALHOU: ' + e.message +
+      '\n\nSe falar em rota desconhecida, o APP_API.gs implantado é anterior' +
+      ' ao botão da Rodonaves — é preciso colar o arquivo novo e implantar.';
+  }
 }
 
 function salvarConfig() {
