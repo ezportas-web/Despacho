@@ -215,7 +215,7 @@
       <p class="nota" id="teste-rota" style="margin-top:10px;white-space:pre-wrap"></p>
 
       <p class="nota" style="margin-top:26px;opacity:.6">
-        versão <span id="cfg-versao">v11</span> &nbsp;·&nbsp;
+        versão <span id="cfg-versao">v13</span> &nbsp;·&nbsp;
         <a href="#" onclick="forcarAtualizacao();return false;">buscar versão nova</a>
       </p>
     </div>
@@ -536,6 +536,21 @@ async function cotar() {
     esperandoVoce = false;
   }
   desenhar();
+
+  /**
+   * A RODONAVES ENTRA SOZINHA, LOGO DEPOIS
+   *
+   *   Ela ficou fora da leva do SSW porque é lenta — um teste chegou a 54
+   *   segundos — e segurava todas as outras. Mas deixá-la esperando um toque
+   *   fazia parecer que ninguém tinha cotado.
+   *
+   *   Agora as cinco do SSW aparecem na hora, e ela dispara em seguida,
+   *   mostrando "cotando…" no lugar dela até responder. O toque continua
+   *   valendo, para quando você quiser refazer.
+   */
+  if (cotacao && (cotacao.sobDemanda || []).length && !rodonavesCotando) {
+    cotarRodonaves();
+  }
 }
 
 function montarCotacoes() {
@@ -586,8 +601,8 @@ function montarCotacoes() {
       h += '<button class="transp" onclick="cotarRodonaves()">'+
         '<div class="marca" style="background:'+cor(s.t)+'">'+s.t.charAt(0)+'</div>'+
         '<div class="meio"><div class="nome">'+s.t+'</div>'+
-        '<div class="obs neutra">toque para cotar</div></div>'+
-        '<div class="dir"><div class="v" style="font-size:17px;color:var(--aluminio)">cotar</div>'+
+        '<div class="obs neutra">na fila, ela é a última</div></div>'+
+        '<div class="dir"><div class="v" style="font-size:15px;color:var(--texto-2)">aguarde</div>'+
         '</div></button>';
     });
   }
