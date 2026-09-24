@@ -215,7 +215,7 @@
       <p class="nota" id="teste-rota" style="margin-top:10px;white-space:pre-wrap"></p>
 
       <p class="nota" style="margin-top:26px;opacity:.6">
-        versão <span id="cfg-versao">v15</span> &nbsp;·&nbsp;
+        versão <span id="cfg-versao">v16</span> &nbsp;·&nbsp;
         <a href="#" onclick="forcarAtualizacao();return false;">buscar versão nova</a>
       </p>
     </div>
@@ -670,8 +670,8 @@ var WHATS = [
     nome: 'MODULAR',
     numero: '554722042377',
     quem: 'Blulog Express',
-    estados: ['MA','PI','CE','RN','PB','PE','AL','SE','BA',
-              'PA','AM','AP','RR','TO','RO','AC'],
+    // só o Nordeste — o Norte ela não faz
+    estados: ['MA','PI','CE','RN','PB','PE','AL','SE','BA'],
     obs: function () { return 'cotação por mensagem'; }
   }
 ];

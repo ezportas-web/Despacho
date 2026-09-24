@@ -18,7 +18,7 @@
  * TROCOU O index.html? Mude o número da versão abaixo; ele também limpa o
  * que ficou de trás.
  */
-const VERSAO = 'despacho-v15';
+const VERSAO = 'despacho-v16';
 
 const CASCA = [
   './',
