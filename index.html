@@ -347,7 +347,7 @@ textarea { min-height: 260px; font-size: 13px; line-height: 1.5;
       <div class="nota" id="teste-rota" style="white-space:pre-wrap"></div>
       <button class="botao vazio" onclick="forcarAtualizacao()">BUSCAR VERSÃO NOVA</button>
       <div class="nota" style="text-align:center;margin-top:14px;opacity:.7">
-        versão <span id="cfg-versao">v19</span></div>
+        versão <span id="cfg-versao">v20</span></div>
     </div>
   </section>
 
@@ -960,7 +960,10 @@ function deuCerto(i, resultado) {
     roda.style.display = 'none';
     certo.classList.add('on');
     recado.textContent = 'romaneio enviado';
-    detalheCamada.textContent = (resultado && resultado.avisos && resultado.avisos.length) ? resultado.avisos.join('\n') : 'o Everton já recebeu';
+    var linhas = (resultado && resultado.avisos && resultado.avisos.length) ? resultado.avisos.slice() : ['o Everton já recebeu'];
+    // o cronômetro do motor: se o envio voltar a demorar, é aqui que se vê onde
+    if (resultado && resultado.tempos) linhas.push('\n' + resultado.tempos);
+    detalheCamada.textContent = linhas.join('\n');
   }, 300);
 
   setTimeout(function(){
