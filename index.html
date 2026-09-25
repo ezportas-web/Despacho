@@ -248,7 +248,25 @@ textarea { min-height: 260px; font-size: 13px; line-height: 1.5;
 }
 .camada.on { display: flex; }
 .camada .caixa { text-align: center; padding: 30px; max-width: 340px; }
-.roda { position: relative; width: 116px; height: 116px; margin: 0 auto; }
+.roda { position: relative; width: 116px; height: 116px; margin: 0 auto;
+        display: flex; align-items: center; justify-content: center; }
+
+/* --- a ampulheta: a areia escorre, e ela vira --- */
+.ampulheta { width: 64px; height: 96px; transform: none !important;
+             animation: virar 2.4s cubic-bezier(.7,0,.3,1) infinite; }
+.ampulheta .vidro { fill: none; stroke: var(--dourado); stroke-width: 2.4; stroke-linejoin: round; }
+.ampulheta .tampa { fill: var(--dourado-forte); }
+.ampulheta .areia { fill: var(--dourado); opacity: .9; }
+.ampulheta .areia-cima  { transform-origin: 32px 48px; animation: esvaziar 2.4s linear infinite; }
+.ampulheta .areia-baixo { transform-origin: 32px 88px; animation: encher 2.4s linear infinite; }
+.ampulheta .fio { stroke: var(--dourado); stroke-width: 1.4; stroke-dasharray: 3 3;
+                  animation: cair .4s linear infinite; }
+
+/* a areia de cima desce e some; a de baixo sobe; no fim ela vira */
+@keyframes esvaziar { 0% { transform: scaleY(1); } 80%, 100% { transform: scaleY(0); } }
+@keyframes encher   { 0% { transform: scaleY(0); } 80%, 100% { transform: scaleY(1); } }
+@keyframes cair     { to { stroke-dashoffset: -6; } }
+@keyframes virar    { 0%, 82% { transform: rotate(0deg); } 100% { transform: rotate(180deg); } }
 .roda svg { width: 100%; height: 100%; transform: rotate(-90deg); }
 .roda circle { fill: none; stroke-width: 5; }
 .roda .trilhoc { stroke: #2A221B; }
@@ -282,12 +300,24 @@ textarea { min-height: 260px; font-size: 13px; line-height: 1.5;
 <!-- A CAMADA DO ENVIO -->
 <div class="camada" id="camada">
   <div class="caixa">
+    <!-- A AMPULHETA
+         Antes era uma roda com porcentagem — que não sabia o progresso de
+         verdade: subia sozinha até 88% e parava esperando o motor. A
+         ampulheta diz a verdade: está trabalhando, sem prometer número.
+         A areia escorre, e quando acaba ela vira e começa de novo. -->
     <div class="roda" id="roda">
-      <svg viewBox="0 0 100 100">
-        <circle class="trilhoc" cx="50" cy="50" r="42"/>
-        <circle class="corda" id="corda" cx="50" cy="50" r="42"/>
+      <svg class="ampulheta" viewBox="0 0 64 96">
+        <defs>
+          <clipPath id="vidro-cima"><path d="M14 10 H50 L34 46 H30 Z"/></clipPath>
+          <clipPath id="vidro-baixo"><path d="M30 50 H34 L50 86 H14 Z"/></clipPath>
+        </defs>
+        <rect class="areia areia-cima" x="10" y="10" width="44" height="38" clip-path="url(#vidro-cima)"/>
+        <rect class="areia areia-baixo" x="10" y="48" width="44" height="40" clip-path="url(#vidro-baixo)"/>
+        <line class="fio" x1="32" y1="46" x2="32" y2="84"/>
+        <path class="vidro" d="M14 10 H50 L34 46 V50 L50 86 H14 L30 50 V46 Z"/>
+        <rect class="tampa" x="8" y="4" width="48" height="6" rx="2"/>
+        <rect class="tampa" x="8" y="86" width="48" height="6" rx="2"/>
       </svg>
-      <div class="pct" id="pct">0%</div>
     </div>
     <svg class="certo" id="certo" viewBox="0 0 100 100">
       <circle cx="50" cy="50" r="42"/><path d="M30 51 L44 65 L70 37"/>
@@ -297,7 +327,7 @@ textarea { min-height: 260px; font-size: 13px; line-height: 1.5;
     </svg>
     <div class="recado" id="recado">enviando o romaneio…</div>
     <div class="detalhe" id="detalhe-camada"></div>
-    <button class="botao vazio" id="fechar" onclick="fecharCamada()" style="display:none">ENTENDI</button>
+    <button class="botao vazio" id="fechar" onclick="tocarBotaoCamada()" style="display:none">ENTENDI</button>
   </div>
 </div>
 
@@ -347,7 +377,7 @@ textarea { min-height: 260px; font-size: 13px; line-height: 1.5;
       <div class="nota" id="teste-rota" style="white-space:pre-wrap"></div>
       <button class="botao vazio" onclick="forcarAtualizacao()">BUSCAR VERSÃO NOVA</button>
       <div class="nota" style="text-align:center;margin-top:14px;opacity:.7">
-        versão <span id="cfg-versao">v20</span></div>
+        versão <span id="cfg-versao">v22</span></div>
     </div>
   </section>
 
@@ -543,7 +573,7 @@ async function prepararCotacoes() {
     if (!p || cotacoesProntas[idDe(p)]) continue;
     try {
       var d = await pedir('cotar', { loja: p.loja, pedido: idDe(p) });
-      cotacoesProntas[idDe(p)] = d;
+      cotacoesProntas[idDe(p)] = normalizarCotacao_(d);
       feitos++;
       desenharPagina(i);
       montarLista();
@@ -555,6 +585,20 @@ async function prepararCotacoes() {
 // ===========================================================================
 // COTAÇÃO — um pedido por tela
 // ===========================================================================
+/**
+ * A COTAÇÃO SEMPRE COM AS LISTAS
+ *   Se o motor devolver uma cotação sem alguma das listas — por erro dele ou
+ *   de rede —, a tela quebrava em vez de mostrar "ninguém atende". Aqui cada
+ *   lista vira vazia quando não vem.
+ */
+function normalizarCotacao_(d) {
+  d = d || {};
+  ['cotadas', 'manuais', 'recusadas', 'avisos', 'sobDemanda'].forEach(function (k) {
+    if (!Array.isArray(d[k])) d[k] = [];
+  });
+  return d;
+}
+
 function montarTrilho() {
   var trilho = $('trilho');
   if (!PEDIDOS.length) {
@@ -594,7 +638,7 @@ async function cotar(i) {
 
   try {
     var d = await pedir('cotar', { loja: p.loja, pedido: id });
-    cotacoesProntas[id] = d;
+    cotacoesProntas[id] = normalizarCotacao_(d);
   } catch (e) {
     cotacoesProntas[id] = { cotadas:[], manuais:[], recusadas:[], avisos:['Falhou: '+e.message] };
   } finally {
@@ -880,11 +924,21 @@ function montarEnvio(i, p, c) {
     '<button class="botao" onclick="enviar('+i+')">ENVIAR POR '+esc(e.t)+'</button>';
 }
 
-var camada = $('camada'), corda = $('corda'), pct = $('pct'), roda = $('roda');
+var camada = $('camada'), roda = $('roda');
 var certo = $('certo'), erro = $('erro'), recado = $('recado'), detalheCamada = $('detalhe-camada'), fechar = $('fechar');
 var andando = null;
 
-function pintar(q) { corda.style.strokeDashoffset = 264 - (264 * q / 100); pct.textContent = Math.round(q) + '%'; }
+/**
+ * ENQUANTO A GENTE MEDE O ENVIO
+ *   Com isto ligado, o certo verde fica na tela com o cronômetro até você
+ *   tocar em "próximo pedido" — dá para ler com calma. Quando o envio
+ *   estiver rápido, é pôr false e ele volta a sumir sozinho.
+ */
+var ESPERAR_TOQUE_ENVIO = false;   // medição feita em 25/09: 4,1 s
+var seguirDepois = null;
+
+/** Era a porcentagem da roda; com a ampulheta não há número a pintar. */
+function pintar(q) {}
 
 function abrirCamada() {
   camada.classList.add('on');
@@ -893,13 +947,22 @@ function abrirCamada() {
   fechar.style.display = 'none';
   recado.textContent = 'enviando o romaneio…';
   detalheCamada.textContent = 'gravando na planilha, mandando o e-mail e avisando o comprador';
-  pintar(0);
-  var q = 0;
   clearInterval(andando);
-  // a roda anda sozinha até 88% — o resto só fecha quando o motor responde
-  andando = setInterval(function(){ q += 4 + Math.random()*5; if (q >= 88) { q = 88; clearInterval(andando); } pintar(q); }, 220);
+  // a ampulheta gira sozinha enquanto o motor trabalha — não há progresso a
+  // fingir: o motor responde de uma vez, quando termina
 }
-function fecharCamada() { camada.classList.remove('on'); clearInterval(andando); }
+function fecharCamada() {
+  camada.classList.remove('on');
+  clearInterval(andando);
+  fechar.textContent = 'ENTENDI';
+  fechar.style.display = 'none';
+}
+
+/** O botão da camada: segue para o próximo pedido, ou só fecha se foi erro. */
+function tocarBotaoCamada() {
+  if (seguirDepois) { var f = seguirDepois; seguirDepois = null; f(); return; }
+  fecharCamada();
+}
 
 async function enviar(i) {
   var p = PEDIDOS[i]; if (!p) return;
@@ -966,7 +1029,7 @@ function deuCerto(i, resultado) {
     detalheCamada.textContent = linhas.join('\n');
   }, 300);
 
-  setTimeout(function(){
+  var seguir = function(){
     fecharCamada();
     // a carta sobe e some, o pedido sai da lista, o próximo fica em evidência
     var carta = $('carta-'+id); if (carta) carta.classList.add('foi');
@@ -985,7 +1048,18 @@ function deuCerto(i, resultado) {
         garantirCotacao(atual);
       }
     }, 560);
-  }, 1700);
+  };
+
+  if (ESPERAR_TOQUE_ENVIO) {
+    // fica na tela até o toque, para dar para ler o cronômetro
+    seguirDepois = seguir;
+    setTimeout(function(){
+      fechar.textContent = 'PRÓXIMO PEDIDO';
+      fechar.style.display = 'block';
+    }, 320);
+  } else {
+    setTimeout(seguir, 2600);
+  }
 }
 
 function naoFoi(motivo) {
