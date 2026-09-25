@@ -215,7 +215,7 @@
       <p class="nota" id="teste-rota" style="margin-top:10px;white-space:pre-wrap"></p>
 
       <p class="nota" style="margin-top:26px;opacity:.6">
-        versão <span id="cfg-versao">v17</span> &nbsp;·&nbsp;
+        versão <span id="cfg-versao">v18</span> &nbsp;·&nbsp;
         <a href="#" onclick="forcarAtualizacao();return false;">buscar versão nova</a>
       </p>
     </div>
@@ -713,16 +713,28 @@ function blocoWhatsApp_(d) {
           'style="font-size:14px;padding:6px 12px">abrir ↗</button></div>' +
       '</div>' +
 
-      // os campos da resposta: número da cotação e valor
-      '<div style="display:flex;gap:8px;margin-top:10px">' +
+      /**
+       * OS CAMPOS DA RESPOSTA, EM DUAS LINHAS
+       *   Na primeira versão os dois campos e o botão dividiam a mesma
+       *   linha, e no celular o "usar" saía da tela — era preciso arrastar
+       *   para o lado para alcançá-lo.
+       *
+       *   Agora os campos ficam em cima, lado a lado, e o botão embaixo,
+       *   ocupando a largura toda. Dá para tocar com o polegar sem mirar.
+       */
+      '<div style="display:flex;gap:8px;margin-top:12px">' +
         '<input id="wa-cot-' + w.nome + '" type="text" placeholder="nº da cotação" ' +
-          'style="flex:1;padding:7px;border:1px solid var(--linha)">' +
+          'style="flex:1;min-width:0;padding:10px;border:1px solid var(--linha);' +
+          'border-radius:8px;font-size:15px">' +
         '<input id="wa-val-' + w.nome + '" type="text" inputmode="decimal" ' +
-          'placeholder="0,00" style="width:110px;padding:7px;text-align:right;' +
-          'border:1px solid var(--linha)">' +
-        '<button onclick="usarWhats(\'' + w.nome + '\')" ' +
-          'style="padding:7px 14px">usar</button>' +
+          'placeholder="R$ 0,00" style="width:120px;padding:10px;text-align:right;' +
+          'border:1px solid var(--linha);border-radius:8px;font-size:15px">' +
       '</div>' +
+
+      '<button onclick="usarWhats(\'' + w.nome + '\')" ' +
+        'style="width:100%;margin-top:8px;padding:12px;border-radius:8px;' +
+        'background:#25D366;color:#fff;border:0;font-size:15px;font-weight:500">' +
+        'USAR ESTA COTAÇÃO</button>' +
     '</div>';
   });
 
