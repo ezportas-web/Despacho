@@ -215,7 +215,7 @@
       <p class="nota" id="teste-rota" style="margin-top:10px;white-space:pre-wrap"></p>
 
       <p class="nota" style="margin-top:26px;opacity:.6">
-        versão <span id="cfg-versao">v16</span> &nbsp;·&nbsp;
+        versão <span id="cfg-versao">v17</span> &nbsp;·&nbsp;
         <a href="#" onclick="forcarAtualizacao();return false;">buscar versão nova</a>
       </p>
     </div>
@@ -661,9 +661,15 @@ var WHATS = [
     // RS e PR ela não faz
     obs: function (uf) {
       if (['SC','SP','RJ'].indexOf(uf) >= 0) return 'atende direto';
-      if (['MG','ES'].indexOf(uf) >= 0) return 'pela Transrefer';
-      if (['BA','AL','SE','PB','RN','CE','MA','PI'].indexOf(uf) >= 0) return 'pela Rápido Figueiredo';
-      return 'pela Gran Cargo';
+      var p = this.parceira(uf);
+      return p ? 'pela ' + p.charAt(0) + p.substring(1).toLowerCase() : '';
+    },
+    /** Quem roda de verdade — vai no e-mail, para saber onde faturar. */
+    parceira: function (uf) {
+      if (['SC','SP','RJ'].indexOf(uf) >= 0) return '';
+      if (['MG','ES'].indexOf(uf) >= 0) return 'TRANSREFER';
+      if (['BA','AL','SE','PB','RN','CE','MA','PI'].indexOf(uf) >= 0) return 'RÁPIDO FIGUEIREDO';
+      return 'GRAN CARGO';
     }
   },
   {
@@ -672,7 +678,8 @@ var WHATS = [
     quem: 'Blulog Express',
     // só o Nordeste — o Norte ela não faz
     estados: ['MA','PI','CE','RN','PB','PE','AL','SE','BA'],
-    obs: function () { return 'cotação por mensagem'; }
+    obs: function () { return 'cotação por mensagem'; },
+    parceira: function () { return ''; }
   }
 ];
 
@@ -686,12 +693,37 @@ function blocoWhatsApp_(d) {
   var h = '<div class="secao">Cotar pelo WhatsApp</div>';
 
   servem.forEach(function (w) {
-    h += '<button class="transp" onclick="mandarWhats(\'' + w.nome + '\')">' +
-      '<div class="marca" style="background:#25D366">W</div>' +
-      '<div class="meio"><div class="nome">' + w.nome + '</div>' +
-      '<div class="obs neutra">' + esc(w.quem + ' — ' + w.obs(uf)) + '</div></div>' +
-      '<div class="dir"><div class="v" style="font-size:15px;color:var(--aluminio)">' +
-      'abrir ↗</div></div></button>';
+    /**
+     * O NOME QUE VAI NO E-MAIL
+     *   Quando o destino é de parceira, o Everton precisa saber em qual
+     *   empresa faturar: a CWLog cobra por ela, mas quem roda é a Gran
+     *   Cargo, a Rápido Figueiredo ou a Transrefer.
+     *
+     *   Por isso o e-mail leva as duas: "CWLOG / GRAN CARGO".
+     */
+    var parceira = w.parceira ? w.parceira(uf) : '';
+    var nomeFatura = parceira ? w.nome + ' / ' + parceira : w.nome;
+
+    h += '<div class="transp" style="display:block;padding:12px 14px">' +
+      '<div style="display:flex;align-items:center;gap:12px">' +
+        '<div class="marca" style="background:#25D366">W</div>' +
+        '<div class="meio"><div class="nome">' + esc(nomeFatura) + '</div>' +
+        '<div class="obs neutra">' + esc(w.quem + ' — ' + w.obs(uf)) + '</div></div>' +
+        '<div class="dir"><button onclick="mandarWhats(\'' + w.nome + '\')" ' +
+          'style="font-size:14px;padding:6px 12px">abrir ↗</button></div>' +
+      '</div>' +
+
+      // os campos da resposta: número da cotação e valor
+      '<div style="display:flex;gap:8px;margin-top:10px">' +
+        '<input id="wa-cot-' + w.nome + '" type="text" placeholder="nº da cotação" ' +
+          'style="flex:1;padding:7px;border:1px solid var(--linha)">' +
+        '<input id="wa-val-' + w.nome + '" type="text" inputmode="decimal" ' +
+          'placeholder="0,00" style="width:110px;padding:7px;text-align:right;' +
+          'border:1px solid var(--linha)">' +
+        '<button onclick="usarWhats(\'' + w.nome + '\')" ' +
+          'style="padding:7px 14px">usar</button>' +
+      '</div>' +
+    '</div>';
   });
 
   return h;
@@ -734,6 +766,47 @@ function textoCotacaoWhats_() {
   ];
 
   return linhas.join('\n');
+}
+
+/**
+ * LANÇA A COTAÇÃO QUE VOLTOU PELA MENSAGEM
+ *
+ *   Elas respondem no WhatsApp com o número da cotação e o valor. Sem estes
+ *   dois campos, a resposta chegava e não tinha onde pôr: a escolha só
+ *   aceitava transportadora cotada pelo sistema.
+ *
+ *   O nome guardado é o de FATURAMENTO — "CWLOG / GRAN CARGO" quando quem
+ *   roda é parceira —, porque é ele que vai no e-mail do Everton.
+ */
+function usarWhats(nome) {
+  var w = WHATS.filter(function (x) { return x.nome === nome; })[0];
+  if (!w) return;
+
+  var cot = ($('wa-cot-' + nome) || {}).value || '';
+  var bruto = ($('wa-val-' + nome) || {}).value || '';
+  var v = parseFloat(String(bruto).replace(/\./g, '').replace(',', '.'));
+
+  if (!v || v <= 0) {
+    alert('Escreva o valor do frete que eles passaram.');
+    return;
+  }
+
+  var d = (cotacao && cotacao.destino) || {};
+  var uf = String(d.uf || '').toUpperCase();
+  var parceira = w.parceira ? w.parceira(uf) : '';
+
+  escolha = {
+    t: parceira ? w.nome + ' / ' + parceira : w.nome,
+    v: v,
+    prazo: null,
+    cotacao: String(cot).trim()
+  };
+
+  desenhar();
+  setTimeout(function () {
+    var e = $('escopo');
+    if (e) e.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 60);
 }
 
 /** Abre a conversa com o texto pronto. Enviar é com você. */
