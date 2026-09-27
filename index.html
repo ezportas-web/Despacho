@@ -384,7 +384,7 @@ textarea { min-height: 260px; font-size: 13px; line-height: 1.5;
       <div class="nota" id="teste-rota" style="white-space:pre-wrap"></div>
       <button class="botao vazio" onclick="forcarAtualizacao()">BUSCAR VERSÃO NOVA</button>
       <div class="nota" style="text-align:center;margin-top:14px;opacity:.7">
-        versão <span id="cfg-versao">v23</span></div>
+        versão <span id="cfg-versao">v25</span></div>
     </div>
   </section>
 
@@ -428,6 +428,40 @@ var FAT = null;
  */
 var cotacoesProntas = {};   // id -> cotação
 var escolhas = {};          // id -> transportadora escolhida
+
+/**
+ * O QUE O APP LEMBRA ENTRE UMA ABERTURA E OUTRA
+ *
+ *   Fechar o app zerava tudo: ao abrir, ele pedia a lista, cotava de novo,
+ *   e você via as transportadoras "ciclando". Agora a última lista, as
+ *   cotações e as escolhas ficam guardadas no aparelho. Ao abrir, a tela
+ *   aparece na hora com o que havia — e só então o motor é consultado para
+ *   trazer o que mudou.
+ *
+ *   Cotação com mais de uma hora não é restaurada: o preço pode ter mudado.
+ */
+function guardarEstado() {
+  try {
+    localStorage.setItem('app_estado', JSON.stringify({
+      quando: Date.now(), pedidos: PEDIDOS, cotacoes: cotacoesProntas, escolhas: escolhas, atual: atual
+    }));
+  } catch (e) {}
+}
+
+function restaurarEstado() {
+  try {
+    var g = JSON.parse(localStorage.getItem('app_estado') || 'null');
+    if (!g || !g.pedidos || !g.pedidos.length) return false;
+    var idade = (Date.now() - (g.quando || 0)) / 60000;
+    PEDIDOS = g.pedidos;
+    cotacoesProntas = idade <= 60 ? (g.cotacoes || {}) : {};
+    escolhas = g.escolhas || {};
+    atual = Math.min(g.atual || 0, PEDIDOS.length - 1);
+    registrar('estado restaurado: ' + PEDIDOS.length + ' pedido(s), ' +
+              Object.keys(cotacoesProntas).length + ' cotação(ões), de ' + Math.round(idade) + ' min atrás');
+    return true;
+  } catch (e) { return false; }
+}
 var cotando = {};           // id -> true enquanto o SSW responde
 var rodonaves = {};         // id -> true enquanto a Rodonaves responde
 var atual = 0;              // a tela do trilho que está na frente
@@ -581,6 +615,7 @@ async function carregarPedidos(forcar) {
     var tr = $('trilho');
     if (tr) tr.scrollTo({ left: tr.clientWidth * atual, behavior: 'auto' });
     atualizarConta(abaAtual());
+    guardarEstado();
     prepararCotacoes();
   } catch (e) {
     registrar('carga de pedidos FALHOU: ' + e.message);
@@ -644,6 +679,7 @@ async function prepararCotacoes() {
       feitos++;
       desenharPagina(i);
       montarLista();
+      guardarEstado();
     } catch (e) {}
   }
   preparando = false;
@@ -722,6 +758,7 @@ async function cotar(i) {
   }
   desenharPagina(i);
   montarLista();
+  guardarEstado();
 
   // a Rodonaves entra sozinha, logo depois — ela é lenta e ficaria
   // segurando as outras se cotasse junto
@@ -729,21 +766,22 @@ async function cotar(i) {
   if (c && (c.sobDemanda || []).length && !rodonaves[id]) cotarRodonaves(i);
 }
 
-async function cotarRodonaves(i) {
+async function cotarRodonaves(i, deNovo) {
   var p = PEDIDOS[i];
   if (!p) return;
   var id = idDe(p);
   var c = cotacoesProntas[id];
   if (!c) return;
+  if (rodonaves[id]) return;   // já está cotando
 
   c.sobDemanda = [];
   rodonaves[id] = true;
-  registrar('rodonaves cotando ' + id);
+  registrar('rodonaves cotando ' + id + (deNovo ? ' (de novo)' : ''));
   desenharPagina(i);
   esperandoVoce = true;
 
   try {
-    var d = await pedir('rodonaves', { loja: p.loja, pedido: id });
+    var d = await pedir('rodonaves', { loja: p.loja, pedido: id, forcar: deNovo ? 1 : 0 });
     function semRodonaves(lista) { return (lista||[]).filter(function(x){ return x.t !== 'RODONAVES'; }); }
     c.cotadas = semRodonaves(c.cotadas).concat(d.cotadas||[]);
     c.manuais = semRodonaves(c.manuais).concat(d.manuais||[]);
@@ -756,6 +794,7 @@ async function cotarRodonaves(i) {
     rodonaves[id] = false;
   }
   desenharPagina(i);
+  guardarEstado();
 }
 
 function desenharPagina(i) {
@@ -849,10 +888,22 @@ function montarCotacoes(i, c, d) {
   if (c.manuais && c.manuais.length) {
     h += '<div class="secao">Cotar por fora</div>';
     h += c.manuais.map(function(m){
+      /**
+       * A RODONAVES QUE FALHOU PODE TENTAR DE NOVO
+       *   Quando a rede dela não responde, o cartão caía aqui e ficava sem
+       *   saída — a única forma de recotar era fechar o app e esperar. Agora
+       *   tem o botão, que pede ao motor outra tentativa, ignorando o que
+       *   estiver guardado.
+       */
+      var podeRepetir = m.t === 'RODONAVES';
       return '<div class="transp"><div class="marca" style="background:'+cor(m.t)+'">'+m.t.charAt(0)+'</div>'+
-        '<div class="meio"><div class="nome">'+esc(m.t)+'</div><div class="obs">'+esc(m.obs||'sem cotação automática')+'</div></div>'+
-        '<div class="preco"><input type="text" inputmode="decimal" placeholder="R$ 0,00" style="width:110px;text-align:right;padding:8px" '+
-        'onchange="escolherManual('+i+',\''+esc(m.t)+'\',this.value)"></div></div>';
+        '<div class="meio"><div class="nome">'+esc(m.t)+'</div><div class="obs'+(podeRepetir?' alerta':'')+'">'+esc(m.obs||'sem cotação automática')+'</div></div>'+
+        '<div class="preco">'+
+        (podeRepetir
+          ? '<button class="botao vazio pequeno" onclick="cotarRodonaves('+i+', true)">tentar de novo</button>'
+          : '<input type="text" inputmode="decimal" placeholder="R$ 0,00" style="width:110px;text-align:right;padding:8px" '+
+            'onchange="escolherManual('+i+',\''+esc(m.t)+'\',this.value)">')+
+        '</div></div>';
     }).join('');
   }
 
@@ -871,6 +922,7 @@ function montarCotacoes(i, c, d) {
 function escolher(i, t) {
   var p = PEDIDOS[i], id = idDe(p), c = cotacoesProntas[id];
   escolhas[id] = c.cotadas.filter(function(x){ return x.t===t; })[0];
+  guardarEstado();
   desenharPagina(i);
   setTimeout(function(){ var e = $('escopo-'+id); if (e) e.scrollIntoView({behavior:'smooth', block:'center'}); }, 60);
 }
@@ -1116,6 +1168,7 @@ function deuCerto(i, resultado) {
     setTimeout(function(){
       PEDIDOS = PEDIDOS.filter(function(x){ return idDe(x) !== id; });
       delete cotacoesProntas[id]; delete escolhas[id];
+      guardarEstado();
       if (atual >= PEDIDOS.length) atual = Math.max(0, PEDIDOS.length - 1);
       montarLista(); montarTrilho(); atualizarConta(abaAtual());
       var t = $('trilho');
@@ -1255,6 +1308,14 @@ if (!cfg.url || !cfg.chave) {
   $('aviso').style.display = '';
   $('aviso').textContent = 'Primeiro uso: ponha o endereço e a chave em Ajustes.';
 } else {
+  // primeiro o que o aparelho lembra — a tela aparece na hora —, depois o motor
+  if (restaurarEstado()) {
+    montarLista();
+    montarTrilho();
+    atualizarConta(0);
+    var trI = $('trilho');
+    if (trI) trI.scrollTo({ left: trI.clientWidth * atual, behavior: 'auto' });
+  }
   carregarPedidos();
 }
 
