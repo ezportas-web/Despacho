@@ -371,13 +371,20 @@ textarea { min-height: 260px; font-size: 13px; line-height: 1.5;
       <div class="nota" id="cfg-status"></div>
     </div>
 
+    <div class="secao">O que aconteceu</div>
+    <div class="carta">
+      <div class="nota" style="margin:0 0 10px">Os últimos acontecimentos do app, do mais recente ao mais antigo. Se algo sumir ou falhar, a explicação costuma estar aqui.</div>
+      <button class="botao vazio" style="margin-top:0" onclick="mostrarEventos()">VER OS EVENTOS</button>
+      <pre id="eventos" style="display:none;white-space:pre-wrap;font-size:11px;line-height:1.5;color:var(--texto-2);margin:12px 0 0;font-family:ui-monospace,Menlo,monospace"></pre>
+    </div>
+
     <div class="secao">Ferramentas</div>
     <div class="carta">
       <button class="botao vazio" style="margin-top:0" onclick="testarRotaRodonaves()">TESTAR A ROTA DA RODONAVES</button>
       <div class="nota" id="teste-rota" style="white-space:pre-wrap"></div>
       <button class="botao vazio" onclick="forcarAtualizacao()">BUSCAR VERSÃO NOVA</button>
       <div class="nota" style="text-align:center;margin-top:14px;opacity:.7">
-        versão <span id="cfg-versao">v22</span></div>
+        versão <span id="cfg-versao">v23</span></div>
     </div>
   </section>
 
@@ -430,6 +437,24 @@ var CORES = { SINIL:'#6F8FAE', AZURELOG:'#8B7AB5', ITOUPAVA:'#6FA58A',
   TRANSOLIVEIRA:'#C88A5A', ARLETE:'#B5646E', TW:'#5FA6A0', RODONAVES:'#C9A46A' };
 
 function $(id){ return document.getElementById(id); }
+
+/**
+ * O REGISTRO DE EVENTOS
+ *   Em 27/09 a cotação de um pedido aparecia e sumia, e não dava para saber
+ *   por quê. Isto guarda os últimos 60 acontecimentos do app — carregar,
+ *   cotar, redesenhar, recarregar a página — no aparelho, e mostra em
+ *   Ajustes. Da próxima vez que algo estranho acontecer, a resposta está lá.
+ */
+var EVENTOS = [];
+try { EVENTOS = JSON.parse(localStorage.getItem('app_eventos') || '[]'); } catch (e) {}
+function registrar(texto) {
+  var agora = new Date();
+  var hora = ('0'+agora.getHours()).slice(-2)+':'+('0'+agora.getMinutes()).slice(-2)+':'+('0'+agora.getSeconds()).slice(-2);
+  EVENTOS.unshift(hora + '  ' + texto);
+  EVENTOS = EVENTOS.slice(0, 60);
+  try { localStorage.setItem('app_eventos', JSON.stringify(EVENTOS)); } catch (e) {}
+}
+registrar('▶ app aberto (página carregada do zero)');
 function cor(t){ return CORES[t] || '#8E7A5E'; }
 function brl(n){ return 'R$ ' + Number(n||0).toFixed(2).replace('.',',').replace(/\B(?=(\d{3})+(?!\d))/g,'.'); }
 function curto(n){
@@ -450,21 +475,30 @@ function iniciais(nome){
   var p = String(nome||'').trim().split(/\s+/);
   return ((p[0]||'').charAt(0) + (p[p.length-1]||'').charAt(0)).toUpperCase() || '·';
 }
-function idDe(p){ return p && p.ids ? p.ids[0] : ''; }
+function idDe(p){
+  if (!p) return '';
+  if (p.ids && p.ids.length) return String(p.ids[0]);
+  return String(p.id || p.pedido || '');
+}
 
 // ---------------------------------------------------------------------------
 // A conversa com o motor
 // ---------------------------------------------------------------------------
 async function pedir(api, extras) {
   if (!cfg.url || !cfg.chave) throw new Error('Falta configurar o endereço e a chave.');
+  var t0 = Date.now();
   var u = cfg.url + '?api=' + encodeURIComponent(api) + '&chave=' + encodeURIComponent(cfg.chave);
   for (var k in (extras||{})) {
     if (extras[k] !== undefined && extras[k] !== null) u += '&' + k + '=' + encodeURIComponent(extras[k]);
   }
-  var r = await fetch(u, { redirect: 'follow' });
-  if (!r.ok) throw new Error('o motor respondeu ' + r.status);
-  var d = await r.json();
-  if (d.erro) throw new Error(d.erro);
+  var r;
+  try { r = await fetch(u, { redirect: 'follow' }); }
+  catch (e) { registrar('motor ' + api + ': sem resposta (' + e.message + ')'); throw new Error('sem resposta do motor'); }
+  if (!r.ok) { registrar('motor ' + api + ': HTTP ' + r.status); throw new Error('o motor respondeu ' + r.status); }
+  var d;
+  try { d = await r.json(); }
+  catch (e) { registrar('motor ' + api + ': resposta não é JSON (' + ((Date.now()-t0)/1000).toFixed(1) + 's)'); throw new Error('o motor devolveu algo que não é resposta — provavelmente está sendo reimplantado'); }
+  if (d.erro) { registrar('motor ' + api + ': erro — ' + d.erro); throw new Error(d.erro); }
   return d;
 }
 
@@ -508,19 +542,51 @@ function recarregar() {
 // ===========================================================================
 // PEDIDOS — a lista
 // ===========================================================================
+var carregandoPedidos = false;
+
 async function carregarPedidos(forcar) {
+  /**
+   * UMA CARGA POR VEZ
+   *   No arranque, a carga inicial e o deslizar das abas podiam disparar
+   *   duas cargas juntas; a segunda chegava depois e refazia a lista e o
+   *   trilho por cima do que você já estava olhando.
+   */
+  if (carregandoPedidos) { registrar('carga de pedidos ignorada: já havia uma em andamento'); return; }
+  carregandoPedidos = true;
+  registrar('carregando pedidos' + (forcar ? ' (forçado)' : ''));
+
   $('lista').innerHTML = '<div class="carregando">Buscando pedidos…</div>';
   try {
     var d = await pedir('pedidos', { forcar: forcar ? 1 : 0 });
-    PEDIDOS = d.pedidos || [];
-    if (forcar) cotacoesProntas = {};   // cotação tem validade
+    var novos = d.pedidos || [];
+
+    // o pedido que estava na frente continua na frente, mesmo que a ordem
+    // da lista tenha mudado (pedido novo entrando em cima)
+    var idAtual = idDe(PEDIDOS[atual]);
+    PEDIDOS = novos;
+    var novoIndice = PEDIDOS.map(idDe).indexOf(idAtual);
+    if (novoIndice >= 0) atual = novoIndice;
     if (atual >= PEDIDOS.length) atual = Math.max(0, PEDIDOS.length - 1);
+
+    /**
+     * A COTAÇÃO NÃO É APAGADA NO ATUALIZAR
+     *   Apagar aqui era o que fazia a cotação "sumir" ao atualizar a lista.
+     *   O motor já guarda cada cotação por 30 minutos e serve a mesma; e
+     *   quem quer recotar de propósito tem o botão na tela do pedido.
+     */
+    registrar('pedidos carregados: ' + PEDIDOS.length +
+              (novoIndice >= 0 ? '' : ' (o pedido aberto não está mais na lista)'));
     montarLista();
     montarTrilho();
+    var tr = $('trilho');
+    if (tr) tr.scrollTo({ left: tr.clientWidth * atual, behavior: 'auto' });
     atualizarConta(abaAtual());
     prepararCotacoes();
   } catch (e) {
+    registrar('carga de pedidos FALHOU: ' + e.message);
     $('lista').innerHTML = '<div class="vazio">' + esc(e.message) + '</div>';
+  } finally {
+    carregandoPedidos = false;
   }
 }
 
@@ -552,6 +618,7 @@ function montarLista() {
 /** Toca num pedido: vai para a aba de cotação, na tela dele. */
 function abrirPedido(i) {
   atual = i;
+  registrar('abriu pedido ' + idDe(PEDIDOS[i]) + ' (índice ' + i + ')');
   irPara(1);
   var trilho = $('trilho');
   setTimeout(function(){ trilho.scrollTo({ left: trilho.clientWidth * i, behavior: 'auto' }); }, 80);
@@ -618,7 +685,11 @@ $('trilho').addEventListener('scroll', function () {
   esperaTrilho = setTimeout(function () {
     var t = $('trilho');
     var i = Math.round(t.scrollLeft / t.clientWidth);
-    if (i !== atual) { atual = i; atualizarConta(1); garantirCotacao(i); }
+    if (i !== atual) {
+      atual = i; atualizarConta(1);
+      registrar('trilho parou no pedido ' + idDe(PEDIDOS[i]) + ' (índice ' + i + ')');
+      garantirCotacao(i);
+    }
   }, 80);
 });
 
@@ -634,13 +705,17 @@ async function cotar(i) {
   var id = idDe(p);
   cotando[id] = true;
   esperandoVoce = true;
+  registrar('cotando ' + id + ' (' + p.cliente + ')');
   desenharPagina(i);
 
   try {
     var d = await pedir('cotar', { loja: p.loja, pedido: id });
     cotacoesProntas[id] = normalizarCotacao_(d);
+    registrar('cotação de ' + id + ': ' + cotacoesProntas[id].cotadas.length + ' transportadora(s)' +
+              (d.doCache ? ' (do cache)' : ''));
   } catch (e) {
-    cotacoesProntas[id] = { cotadas:[], manuais:[], recusadas:[], avisos:['Falhou: '+e.message] };
+    cotacoesProntas[id] = { cotadas:[], manuais:[], recusadas:[], avisos:['Falhou: '+e.message], sobDemanda:[] };
+    registrar('cotação de ' + id + ' FALHOU: ' + e.message);
   } finally {
     cotando[id] = false;
     esperandoVoce = false;
@@ -663,6 +738,7 @@ async function cotarRodonaves(i) {
 
   c.sobDemanda = [];
   rodonaves[id] = true;
+  registrar('rodonaves cotando ' + id);
   desenharPagina(i);
   esperandoVoce = true;
 
@@ -723,6 +799,7 @@ function desenharPagina(i) {
 
   // ---- as cotações ----
   if (!c) {
+    if (!cotando[id]) registrar('página de ' + id + ' desenhada SEM cotação (índice ' + i + ')');
     h += cotando[id]
       ? '<div class="carregando">Consultando as transportadoras…</div>'
       : '<button class="botao" onclick="cotar('+i+')">COTAR FRETE</button>';
@@ -970,6 +1047,7 @@ async function enviar(i) {
   var textoEscopo = ($('escopo-'+id) || {}).value || '';
 
   abrirCamada();
+  registrar('enviando ' + id + ' por ' + e.t);
   var resultado = null;
   try {
     resultado = await pedir('enviar', { loja: p.loja, pedido: id, transp: e.t, frete: e.v, cotacao: e.cotacao || '', escopo: textoEscopo });
@@ -1147,6 +1225,12 @@ async function testarRotaRodonaves() {
   } catch (e) {
     alvo.textContent = 'FALHOU: ' + e.message + '\n\nSe falar em rota desconhecida, o APP_API.gs implantado é anterior ao botão da Rodonaves.';
   }
+}
+
+function mostrarEventos() {
+  var e = $('eventos');
+  e.textContent = EVENTOS.length ? EVENTOS.join('\n') : 'nada registrado ainda.';
+  e.style.display = e.style.display === 'none' ? 'block' : 'none';
 }
 
 function salvarConfig() {
