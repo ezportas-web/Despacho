@@ -384,7 +384,7 @@ textarea { min-height: 260px; font-size: 13px; line-height: 1.5;
       <div class="nota" id="teste-rota" style="white-space:pre-wrap"></div>
       <button class="botao vazio" onclick="forcarAtualizacao()">BUSCAR VERSÃO NOVA</button>
       <div class="nota" style="text-align:center;margin-top:14px;opacity:.7">
-        versão <span id="cfg-versao">v25</span></div>
+        versão <span id="cfg-versao">v26</span></div>
     </div>
   </section>
 
@@ -454,7 +454,13 @@ function restaurarEstado() {
     if (!g || !g.pedidos || !g.pedidos.length) return false;
     var idade = (Date.now() - (g.quando || 0)) / 60000;
     PEDIDOS = g.pedidos;
-    cotacoesProntas = idade <= 60 ? (g.cotacoes || {}) : {};
+    /**
+     * A COTAÇÃO NÃO ENVELHECE AQUI
+     *   Eu descartava cotação com mais de uma hora, e às 19:14 de 27/09 isso
+     *   jogou fora nove cotações boas — a cotação vale cinco dias, e o motor
+     *   é quem sabe quando ela sai (no despacho). O app só guarda.
+     */
+    cotacoesProntas = g.cotacoes || {};
     escolhas = g.escolhas || {};
     atual = Math.min(g.atual || 0, PEDIDOS.length - 1);
     registrar('estado restaurado: ' + PEDIDOS.length + ' pedido(s), ' +
@@ -663,25 +669,51 @@ function abrirPedido(i) {
 // ===========================================================================
 // A FILA DE FUNDO — cota três de antemão, uma por vez
 // ===========================================================================
+/**
+ * TODAS AS COTAÇÕES, DE UMA VEZ
+ *
+ *   Antes: esperava 4 segundos, cotava três pedidos em fila, um atrás do
+ *   outro. Fazia sentido quando cada cotação custava 10 segundos de
+ *   transportadora. Agora o motor já tem quase tudo guardado e responde em
+ *   menos de um segundo — então o app pede as de todos os pedidos ao mesmo
+ *   tempo e desenha cada uma conforme chega.
+ *
+ *   A que não estiver guardada o motor cota na hora; como vão em paralelo,
+ *   uma lenta não segura as outras.
+ */
 var preparando = false;
 async function prepararCotacoes() {
   if (preparando) return;
   preparando = true;
-  await new Promise(function (r) { setTimeout(r, 4000); });
-  var feitos = 0;
-  for (var i = 0; i < PEDIDOS.length && feitos < 3; i++) {
-    while (esperandoVoce) await new Promise(function (r) { setTimeout(r, 500); });
-    var p = PEDIDOS[i];
-    if (!p || cotacoesProntas[idDe(p)]) continue;
-    try {
-      var d = await pedir('cotar', { loja: p.loja, pedido: idDe(p) });
-      cotacoesProntas[idDe(p)] = normalizarCotacao_(d);
-      feitos++;
-      desenharPagina(i);
-      montarLista();
-      guardarEstado();
-    } catch (e) {}
-  }
+  registrar('pedindo as cotações de todos os pedidos');
+
+  var pendentes = [];
+  PEDIDOS.forEach(function (p, i) {
+    var id = idDe(p);
+    if (!p || cotacoesProntas[id] || cotando[id]) return;
+    cotando[id] = true;
+    pendentes.push(
+      pedir('cotar', { loja: p.loja, pedido: id })
+        .then(function (d) {
+          cotacoesProntas[id] = normalizarCotacao_(d);
+          registrar('cotação de ' + id + ': ' + cotacoesProntas[id].cotadas.length +
+                    ' transportadora(s)' + (d.doCache ? ' (guardada)' : ''));
+        })
+        .catch(function (e) { registrar('cotação de ' + id + ' falhou: ' + e.message); })
+        .then(function () {
+          cotando[id] = false;
+          var iAgora = PEDIDOS.map(idDe).indexOf(id);
+          if (iAgora >= 0) desenharPagina(iAgora);
+          montarLista();
+          guardarEstado();
+          // a Rodonaves segue sozinha, como quando você abre o pedido
+          var c = cotacoesProntas[id];
+          if (c && (c.sobDemanda || []).length && !rodonaves[id] && iAgora >= 0) cotarRodonaves(iAgora);
+        })
+    );
+  });
+
+  try { await Promise.all(pendentes); } catch (e) {}
   preparando = false;
 }
 
@@ -778,7 +810,6 @@ async function cotarRodonaves(i, deNovo) {
   rodonaves[id] = true;
   registrar('rodonaves cotando ' + id + (deNovo ? ' (de novo)' : ''));
   desenharPagina(i);
-  esperandoVoce = true;
 
   try {
     var d = await pedir('rodonaves', { loja: p.loja, pedido: id, forcar: deNovo ? 1 : 0 });
@@ -790,7 +821,6 @@ async function cotarRodonaves(i, deNovo) {
   } catch (e) {
     c.avisos = (c.avisos||[]).concat(['Rodonaves falhou: '+e.message]);
   } finally {
-    esperandoVoce = false;
     rodonaves[id] = false;
   }
   desenharPagina(i);
