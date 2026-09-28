@@ -384,7 +384,7 @@ textarea { min-height: 260px; font-size: 13px; line-height: 1.5;
       <div class="nota" id="teste-rota" style="white-space:pre-wrap"></div>
       <button class="botao vazio" onclick="forcarAtualizacao()">BUSCAR VERSÃO NOVA</button>
       <div class="nota" style="text-align:center;margin-top:14px;opacity:.7">
-        versão <span id="cfg-versao">v26</span></div>
+        versão <span id="cfg-versao">v27</span></div>
     </div>
   </section>
 
@@ -648,6 +648,9 @@ function montarLista() {
           '<div class="oque">'+esc(resumo)+'</div>'+
           '<span class="etiqueta loja" style="background:'+(p.lojaCor||'#C9A46A')+'">'+esc(p.lojaCurto||'')+'</span>'+
           (p.juntos>1 ? '<span class="etiqueta junto">'+p.juntos+' compras juntas</span>' : '')+
+          // na MadeiraMadeira, o pedido só aceita aviso de envio depois que a
+          // nota é marcada lá — o Bling costuma fazer isso sozinho
+          (p.canal==='MM' && !p.jaFaturado ? '<span class="etiqueta" style="border-color:#6B5327;color:var(--laranja)">aguardando NF na MM</span>' : '')+
           (cotacoesProntas[idDe(p)] ? '<span class="etiqueta">cotado</span>' : '')+
         '</div>'+
         '<div class="dir"><div class="valor">'+brl(p.total)+'</div>'+
@@ -1078,9 +1081,21 @@ function montarEnvio(i, p, c) {
   // é o que a transportadora cobra — parece erro de digitação e não é
   var texto = base + '\n\nTRANSPORTADORA: ' + e.t + '\nNÚMERO DA COTAÇÃO: ' + (e.cotacao || '') +
               '\nPESO (KG): ' + peso + '\nVALOR DO FRETE: ' + brl(e.v);
-  return '<div class="secao">Confira antes de enviar</div>'+
-    '<textarea id="escopo-'+esc(id)+'">'+esc(texto)+'</textarea>'+
-    '<button class="botao" onclick="enviar('+i+')">ENVIAR POR '+esc(e.t)+'</button>';
+  var h = '<div class="secao">Confira antes de enviar</div>'+
+    '<textarea id="escopo-'+esc(id)+'">'+esc(texto)+'</textarea>';
+
+  /**
+   * O RASTREIO DA MADEIRAMADEIRA
+   *   Ao marcar o envio lá, o código de rastreio vai junto — e é ele que a
+   *   MM manda ao comprador por chat, WhatsApp e e-mail. Deixando em branco,
+   *   segue o número do pedido, que é o que a transportadora costuma usar
+   *   como referência quando ainda não há conhecimento emitido.
+   */
+  if (p.canal === 'MM') {
+    h += '<input id="rastreio-'+esc(id)+'" type="text" placeholder="código de rastreio (opcional)" style="margin-top:10px">';
+  }
+
+  return h + '<button class="botao" onclick="enviar('+i+')">ENVIAR POR '+esc(e.t)+'</button>';
 }
 
 var camada = $('camada'), roda = $('roda');
@@ -1132,7 +1147,10 @@ async function enviar(i) {
   registrar('enviando ' + id + ' por ' + e.t);
   var resultado = null;
   try {
-    resultado = await pedir('enviar', { loja: p.loja, pedido: id, transp: e.t, frete: e.v, cotacao: e.cotacao || '', escopo: textoEscopo });
+    var rastreio = (($('rastreio-'+id) || {}).value || '').trim();
+    resultado = await pedir('enviar', { loja: p.loja, pedido: id, transp: e.t, frete: e.v,
+                                        cotacao: e.cotacao || '', escopo: textoEscopo,
+                                        rastreio: rastreio });
   } catch (err) {
     resultado = { email:false, planilha:false, avisos:['Falhou: ' + err.message], caiu: true };
   }
