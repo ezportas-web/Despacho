@@ -384,7 +384,7 @@ textarea { min-height: 260px; font-size: 13px; line-height: 1.5;
       <div class="nota" id="teste-rota" style="white-space:pre-wrap"></div>
       <button class="botao vazio" onclick="forcarAtualizacao()">BUSCAR VERSÃO NOVA</button>
       <div class="nota" style="text-align:center;margin-top:14px;opacity:.7">
-        versão <span id="cfg-versao">v28</span></div>
+        versão <span id="cfg-versao">v29</span></div>
     </div>
   </section>
 
@@ -614,7 +614,9 @@ async function carregarPedidos(forcar) {
      *   O motor já guarda cada cotação por 30 minutos e serve a mesma; e
      *   quem quer recotar de propósito tem o botão na tela do pedido.
      */
+    // a marca do motor: diz qual versão IMPLANTADA respondeu
     registrar('pedidos carregados: ' + PEDIDOS.length +
+              (d.motor ? '   [motor: ' + d.motor + ']' : '   [motor sem marca — versão antiga]') +
               (novoIndice >= 0 ? '' : ' (o pedido aberto não está mais na lista)'));
     montarLista();
     montarTrilho();
