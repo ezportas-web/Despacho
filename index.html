@@ -384,7 +384,7 @@ textarea { min-height: 260px; font-size: 13px; line-height: 1.5;
       <div class="nota" id="teste-rota" style="white-space:pre-wrap"></div>
       <button class="botao vazio" onclick="forcarAtualizacao()">BUSCAR VERSÃO NOVA</button>
       <div class="nota" style="text-align:center;margin-top:14px;opacity:.7">
-        versão <span id="cfg-versao">v29</span></div>
+        versão <span id="cfg-versao">v30</span></div>
     </div>
   </section>
 
@@ -769,7 +769,19 @@ function garantirCotacao(i) {
   if (!cotacoesProntas[idDe(p)] && !cotando[idDe(p)]) cotar(i);
 }
 
-async function cotar(i) {
+/** Joga fora a cotação guardada deste pedido e pede uma nova ao motor. */
+async function recotar(i) {
+  var p = PEDIDOS[i];
+  if (!p) return;
+  var id = idDe(p);
+  delete cotacoesProntas[id];
+  delete escolhas[id];
+  guardarEstado();
+  registrar('recotando ' + id + ' (jogou fora a guardada)');
+  await cotar(i, true);
+}
+
+async function cotar(i, forcar) {
   var p = PEDIDOS[i];
   if (!p) return;
   var id = idDe(p);
@@ -779,7 +791,7 @@ async function cotar(i) {
   desenharPagina(i);
 
   try {
-    var d = await pedir('cotar', { loja: p.loja, pedido: id });
+    var d = await pedir('cotar', { loja: p.loja, pedido: id, forcar: forcar ? 1 : 0 });
     cotacoesProntas[id] = normalizarCotacao_(d);
     registrar('cotação de ' + id + ': ' + cotacoesProntas[id].cotadas.length + ' transportadora(s)' +
               (d.doCache ? ' (do cache)' : ''));
@@ -837,8 +849,27 @@ function desenharPagina(i) {
   if (!pagina) return;
 
   var c = cotacoesProntas[id];
-  var d = (c && c.destino) || { endereco: p.endereco, cidade: p.cidade, uf: p.uf,
-                                  cep: p.cepDestino, recebe: p.recebe, cpf: p.cpf };
+
+  /**
+   * O ENDEREÇO DO PEDIDO VEM PRIMEIRO
+   *
+   *   A cotação guarda dentro dela o endereço do momento em que foi feita.
+   *   Em 28/09 isso segurou o pedido da MadeiraMadeira na tela sem CEP:
+   *   o motor já mandava o endereço certo, mas a cotação velha, guardada no
+   *   celular, continuava sendo a fonte.
+   *
+   *   Agora o pedido manda. A cotação só preenche o que ele não tiver.
+   */
+  var dc = (c && c.destino) || {};
+  var d = {
+    endereco: p.endereco || dc.endereco || '',
+    cidade: p.cidade || dc.cidade || '',
+    uf: p.uf || dc.uf || '',
+    cep: p.cepDestino || dc.cep || '',
+    recebe: p.recebe || dc.recebe || '',
+    cpf: p.cpf || dc.cpf || '',
+    nomeNota: p.clienteNota || dc.nomeNota || ''
+  };
   var doc = (d && d.cpf) || p.cpf || '';
 
   var h = '';
@@ -889,6 +920,15 @@ function montarCotacoes(i, c, d) {
   var h = '';
 
   if (rodonaves[id]) h += '<div class="nota alerta" style="margin-top:14px">Cotação em andamento — a Rodonaves leva até um minuto.</div>';
+
+  /**
+   * COTAR DE NOVO
+   *   A cotação fica guardada até o despacho, e é isso que se quer no dia a
+   *   dia. Mas quando o pedido muda — endereço corrigido, item trocado — é
+   *   preciso jogar fora a antiga. Este botão faz isso.
+   */
+  h += '<button class="botao vazio pequeno" style="float:right;margin-top:14px" ' +
+       'onclick="recotar('+i+')">cotar de novo</button>';
 
   if (c.cotadas.length || (c.sobDemanda||[]).length || rodonaves[id]) {
     h += '<div class="secao">Quem atende '+esc(d.cidade||'')+'</div>';
