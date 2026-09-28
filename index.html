@@ -384,7 +384,7 @@ textarea { min-height: 260px; font-size: 13px; line-height: 1.5;
       <div class="nota" id="teste-rota" style="white-space:pre-wrap"></div>
       <button class="botao vazio" onclick="forcarAtualizacao()">BUSCAR VERSÃO NOVA</button>
       <div class="nota" style="text-align:center;margin-top:14px;opacity:.7">
-        versão <span id="cfg-versao">v27</span></div>
+        versão <span id="cfg-versao">v28</span></div>
     </div>
   </section>
 
@@ -648,9 +648,6 @@ function montarLista() {
           '<div class="oque">'+esc(resumo)+'</div>'+
           '<span class="etiqueta loja" style="background:'+(p.lojaCor||'#C9A46A')+'">'+esc(p.lojaCurto||'')+'</span>'+
           (p.juntos>1 ? '<span class="etiqueta junto">'+p.juntos+' compras juntas</span>' : '')+
-          // na MadeiraMadeira, o pedido só aceita aviso de envio depois que a
-          // nota é marcada lá — o Bling costuma fazer isso sozinho
-          (p.canal==='MM' && !p.jaFaturado ? '<span class="etiqueta" style="border-color:#6B5327;color:var(--laranja)">aguardando NF na MM</span>' : '')+
           (cotacoesProntas[idDe(p)] ? '<span class="etiqueta">cotado</span>' : '')+
         '</div>'+
         '<div class="dir"><div class="valor">'+brl(p.total)+'</div>'+
