@@ -384,7 +384,7 @@ textarea { min-height: 260px; font-size: 13px; line-height: 1.5;
       <div class="nota" id="teste-rota" style="white-space:pre-wrap"></div>
       <button class="botao vazio" onclick="forcarAtualizacao()">BUSCAR VERSÃO NOVA</button>
       <div class="nota" style="text-align:center;margin-top:14px;opacity:.7">
-        versão <span id="cfg-versao">v30</span></div>
+        versão <span id="cfg-versao">v31</span></div>
     </div>
   </section>
 
@@ -1299,6 +1299,18 @@ async function carregarFaturamento() {
 
 function montarFaturamento() {
   var f = FAT;
+
+  /**
+   * QUANDO FALTA A COLUNA DO MÊS
+   *   O motor avisa em vez de somar no mês errado. Aqui a mensagem aparece
+   *   inteira, para você saber o que fazer na planilha.
+   */
+  if (f.erro) {
+    $('fat').innerHTML =
+      '<div class="carta"><span class="rotulo">faturamento</span>' +
+      '<div class="nota alerta" style="margin-top:10px">' + esc(f.erro) + '</div></div>';
+    return;
+  }
   var maior = Math.max.apply(null, f.serie.map(function(x){ return x.valor; })) || 1;
   var hoje = new Date().getDate();
   var colunas = f.serie.map(function(x){
@@ -1309,7 +1321,12 @@ function montarFaturamento() {
 
   var h = '<div class="carta"><span class="rotulo">'+esc(f.mes)+' até agora</span>'+
     '<div class="numero">'+brl(f.acumulado)+'</div>'+
-    '<div class="nota">média de '+brl(f.mediaDiaria)+' por dia em '+f.diasFechados+' dia(s) fechado(s)'+(f.hoje?' · hoje já '+brl(f.hoje):'')+'</div>'+
+    // no primeiro dia do mês ainda não há dia fechado: a média não existe
+    '<div class="nota">'+
+      (f.diasFechados && f.mediaDiaria
+        ? 'média de '+brl(f.mediaDiaria)+' por dia em '+f.diasFechados+' dia(s) fechado(s)'
+        : 'primeiro dia do mês — a média aparece a partir de amanhã')+
+      (f.hoje?' · hoje já '+brl(f.hoje):'')+'</div>'+
     '<div class="colunas">'+colunas+'</div>'+
     '<div style="display:flex;justify-content:space-between;margin-top:8px"><span class="nota" style="margin:0">dia 1</span>'+
     '<span class="nota" style="margin:0;color:var(--dourado)">dia '+(f.serie.length?f.serie[f.serie.length-1].dia:'')+'</span></div></div>';
