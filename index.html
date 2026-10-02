@@ -224,6 +224,26 @@ textarea { min-height: 260px; font-size: 13px; line-height: 1.5;
 }
 .carregando, .vazio { text-align: center; color: var(--texto-3); padding: 40px 20px; font-size: 14px; }
 
+/* a meta do mês: barra horizontal que enche conforme o dia */
+.meta-barra{position:relative;height:26px;border-radius:13px;background:#1a1613;
+  overflow:hidden;margin-top:12px;border:1px solid #2a2320}
+.meta-cheio{height:100%;border-radius:13px;
+  background:linear-gradient(90deg,#6B5327,#C9A46A);transition:width .6s ease}
+.meta-cheio.bateu{background:linear-gradient(90deg,#2E7D32,#66BB6A)}
+.meta-texto{position:absolute;top:0;left:0;right:0;height:100%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:12px;font-weight:600;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.meta-parabens{margin-top:10px;padding:10px 12px;border-radius:10px;
+  background:rgba(46,125,50,.16);border:1px solid #2E7D32;
+  color:#8BC98E;font-size:13px;text-align:center}
+
+/* a linha pontilhada do ritmo necessário, dentro do gráfico */
+.colunas{position:relative}
+.linha-meta{position:absolute;left:0;right:0;border-top:1px dashed var(--dourado);
+  opacity:.55;pointer-events:none}
+.linha-meta span{position:absolute;right:0;top:-16px;font-size:10px;
+  color:var(--dourado);opacity:.9;white-space:nowrap}
+
 /* faturamento */
 .numero { font-size: 30px; font-weight: 600; color: var(--dourado-forte); }
 .colunas { display: flex; align-items: flex-end; gap: 3px; height: 120px; margin-top: 14px; }
@@ -384,7 +404,7 @@ textarea { min-height: 260px; font-size: 13px; line-height: 1.5;
       <div class="nota" id="teste-rota" style="white-space:pre-wrap"></div>
       <button class="botao vazio" onclick="forcarAtualizacao()">BUSCAR VERSÃO NOVA</button>
       <div class="nota" style="text-align:center;margin-top:14px;opacity:.7">
-        versão <span id="cfg-versao">v31</span></div>
+        versão <span id="cfg-versao">v32</span></div>
     </div>
   </section>
 
@@ -1297,6 +1317,38 @@ async function carregarFaturamento() {
   catch (e) { $('fat').innerHTML = '<div class="vazio">'+esc(e.message)+'</div>'; }
 }
 
+/**
+ * A BARRA DA META
+ *
+ *   Enche conforme o mês avança. Ao bater os 300 mil ela fica verde e
+ *   aparece o parabéns — mas a barra CONTINUA, mostrando quanto passou.
+ *   Mês bom não para na meta.
+ */
+function barraMeta_(acumulado, meta, precisaPorDia, diasQueSobram) {
+  var pc = meta ? (acumulado / meta) * 100 : 0;
+  var bateu = pc >= 100;
+
+  // passando de 100, a barra enche toda e o excedente vai no texto
+  var largura = Math.min(100, Math.round(pc));
+
+  var h = '<div class="meta-barra">' +
+          '<div class="meta-cheio' + (bateu ? ' bateu' : '') + '" style="width:' + largura + '%"></div>' +
+          '<div class="meta-texto">' + pc.toFixed(1) + '% de ' + curto(meta) + '</div>' +
+          '</div>';
+
+  if (bateu) {
+    var passou = acumulado - meta;
+    h += '<div class="meta-parabens">Parabéns — a meta de ' + curto(meta) + ' foi batida.' +
+         (passou > 0 ? ' Já são ' + brl(passou) + ' acima dela.' : '') + '</div>';
+  } else {
+    h += '<div class="nota" style="margin-top:8px">faltam ' + brl(meta - acumulado) +
+         ' — ' + brl(precisaPorDia) + ' por dia nos próximos ' + diasQueSobram + ' dia(s)</div>';
+  }
+
+  return h;
+}
+
+
 function montarFaturamento() {
   var f = FAT;
 
@@ -1311,13 +1363,44 @@ function montarFaturamento() {
       '<div class="nota alerta" style="margin-top:10px">' + esc(f.erro) + '</div></div>';
     return;
   }
-  var maior = Math.max.apply(null, f.serie.map(function(x){ return x.valor; })) || 1;
+  /**
+   * A META DO MÊS
+   *   R$ 300 mil. Setembro fechou em 341 mil, então é alcançável — e é o
+   *   número que o Jonas usa para saber se o mês está no rumo.
+   */
+  var META_MES = 300000;
+
+  var diasNoMes = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
   var hoje = new Date().getDate();
+
+  /**
+   * O RITMO QUE FALTA
+   *   Não é a meta dividida por 30. É o que FALTA dividido pelos dias que
+   *   SOBRAM — então ele sobe quando o mês atrasa e desce quando adianta.
+   *   É esse número que a linha pontilhada mostra.
+   */
+  var falta = Math.max(0, META_MES - f.acumulado);
+  var diasQueSobram = Math.max(1, diasNoMes - hoje + 1);
+  var precisaPorDia = falta / diasQueSobram;
+
+  var maior = Math.max.apply(null, f.serie.map(function(x){ return x.valor; })) || 1;
+
+  // a linha precisa caber no gráfico: se o ritmo pedido for maior que o
+  // melhor dia, é ele que passa a definir a altura
+  var topo = Math.max(maior, precisaPorDia);
+
   var colunas = f.serie.map(function(x){
-    var alt = Math.round((x.valor / maior) * 100);
-    var classe = x.dia===hoje ? 'hoje' : (x.valor < maior*0.2 ? 'fraco' : '');
+    var alt = Math.round((x.valor / topo) * 100);
+    var classe = x.dia===hoje ? 'hoje' : (x.valor < topo*0.2 ? 'fraco' : '');
     return '<div class="'+classe+'" style="height:'+Math.max(2,alt)+'%" title="dia '+x.dia+': '+brl(x.valor)+'"></div>';
   }).join('');
+
+  // a linha pontilhada, posicionada pela altura que o valor ocupa
+  var alturaLinha = Math.round((precisaPorDia / topo) * 100);
+  if (precisaPorDia > 0 && alturaLinha <= 100) {
+    colunas += '<div class="linha-meta" style="bottom:'+alturaLinha+'%">'+
+               '<span>'+brl(precisaPorDia)+'/dia para 300 mil</span></div>';
+  }
 
   var h = '<div class="carta"><span class="rotulo">'+esc(f.mes)+' até agora</span>'+
     '<div class="numero">'+brl(f.acumulado)+'</div>'+
@@ -1329,7 +1412,9 @@ function montarFaturamento() {
       (f.hoje?' · hoje já '+brl(f.hoje):'')+'</div>'+
     '<div class="colunas">'+colunas+'</div>'+
     '<div style="display:flex;justify-content:space-between;margin-top:8px"><span class="nota" style="margin:0">dia 1</span>'+
-    '<span class="nota" style="margin:0;color:var(--dourado)">dia '+(f.serie.length?f.serie[f.serie.length-1].dia:'')+'</span></div></div>';
+    '<span class="nota" style="margin:0;color:var(--dourado)">dia '+(f.serie.length?f.serie[f.serie.length-1].dia:'')+'</span></div>'+
+    barraMeta_(f.acumulado, META_MES, precisaPorDia, diasQueSobram) +
+    '</div>';
 
   h += '<div class="secao">Projeção de fechamento</div><div class="carta"><div class="faixa">'+
     '<div><span class="rotulo">piso</span><span class="num">'+curto(f.projecao.piso)+'</span></div>'+
