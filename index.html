@@ -224,6 +224,21 @@ textarea { min-height: 260px; font-size: 13px; line-height: 1.5;
 }
 .carregando, .vazio { text-align: center; color: var(--texto-3); padding: 40px 20px; font-size: 14px; }
 
+/* os dias da semana embaixo do gráfico */
+.semana{display:flex;gap:2px;margin-top:4px}
+.semana div{flex:1;text-align:center;font-size:8px;color:var(--texto-2);
+  letter-spacing:-.3px}
+.semana div.fds{color:#6B5327}
+
+/* o melhor e o pior dia */
+.extremos{display:flex;gap:10px;margin-top:12px}
+.extremos > div{flex:1;padding:10px;border-radius:10px;background:#1a1613;
+  border:1px solid #2a2320}
+.extremos .rot{font-size:10px;color:var(--texto-2);text-transform:uppercase;
+  letter-spacing:.5px}
+.extremos .val{font-size:15px;font-weight:600;margin-top:3px}
+.extremos .dia{font-size:11px;color:var(--texto-2);margin-top:2px}
+
 /* a meta do mês: barra horizontal que enche conforme o dia */
 .meta-barra{position:relative;height:26px;border-radius:13px;background:#1a1613;
   overflow:hidden;margin-top:12px;border:1px solid #2a2320}
@@ -404,7 +419,7 @@ textarea { min-height: 260px; font-size: 13px; line-height: 1.5;
       <div class="nota" id="teste-rota" style="white-space:pre-wrap"></div>
       <button class="botao vazio" onclick="forcarAtualizacao()">BUSCAR VERSÃO NOVA</button>
       <div class="nota" style="text-align:center;margin-top:14px;opacity:.7">
-        versão <span id="cfg-versao">v32</span></div>
+        versão <span id="cfg-versao">v33</span></div>
     </div>
   </section>
 
@@ -1318,6 +1333,94 @@ async function carregarFaturamento() {
 }
 
 /**
+ * DE ONDE SAIU A PROJEÇÃO
+ *
+ *   Ela não é mais a média vezes 30. Cada mês anterior é comparado com o
+ *   MESMO DIA de hoje: se estamos 8% acima do que setembro tinha no dia 10,
+ *   setembro inteiro mais 8% vira uma das projeções.
+ *
+ *   A faixa entre piso e teto é o quanto os meses discordam. Ela nasce
+ *   larga e aperta conforme o mês avança — faixa estreita quer dizer que
+ *   já dá para confiar.
+ */
+function explicarProjecao_(p) {
+  if (!p || !p.base || !p.base.length) {
+    return '<div class="nota">Ainda é cedo no mês para comparar com os anteriores — ' +
+           'estes números são o que eles fecharam.</div>';
+  }
+
+  var h = '<div class="nota">Pelo ritmo de hoje comparado ao mesmo dia de cada mês:</div>';
+  p.base.forEach(function (b) {
+    var pc = Math.round((b.ritmo - 1) * 100);
+    h += '<div class="linha-mes" style="color:var(--texto-2)">' +
+         '<span>' + esc(b.nome) + ' ' + (pc >= 0 ? '+' : '') + pc + '%</span>' +
+         '<span>' + brl(b.projetado) + '</span></div>';
+  });
+  return h;
+}
+
+
+/**
+ * OS DIAS DA SEMANA, EMBAIXO DAS BARRAS
+ *
+ *   O gráfico varia muito de um dia para o outro, e boa parte dessa
+ *   variação é só sábado e domingo. Sem essa tira, uma queda de fim de
+ *   semana parece problema; com ela, o padrão aparece sozinho.
+ *
+ *   Sábado e domingo saem em tom apagado, para a vista separar na hora.
+ */
+function semanaDoMes_(serie) {
+  if (!serie || !serie.length) return '';
+
+  var agora = new Date();
+  var letras = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+
+  var h = '<div class="semana">';
+  serie.forEach(function (x) {
+    var d = new Date(agora.getFullYear(), agora.getMonth(), x.dia);
+    var dia = d.getDay();
+    h += '<div class="' + (dia === 0 || dia === 6 ? 'fds' : '') + '">' +
+         letras[dia] + '</div>';
+  });
+  return h + '</div>';
+}
+
+
+/**
+ * O MELHOR E O PIOR DIA DO MÊS
+ *
+ *   Dá o tamanho da variação real. Dia zerado não entra no pior: dia que
+ *   ainda não chegou, ou domingo sem venda, não é "pior dia" — é dia sem
+ *   movimento, e misturar os dois esconde a informação.
+ */
+function extremosDoMes_(serie) {
+  var comValor = (serie || []).filter(function (x) { return x.valor > 0; });
+  if (comValor.length < 2) return '';
+
+  var melhor = comValor[0], pior = comValor[0];
+  comValor.forEach(function (x) {
+    if (x.valor > melhor.valor) melhor = x;
+    if (x.valor < pior.valor) pior = x;
+  });
+
+  var nomes = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+  var agora = new Date();
+  function nomeDoDia(dia) {
+    return nomes[new Date(agora.getFullYear(), agora.getMonth(), dia).getDay()];
+  }
+
+  return '<div class="extremos">' +
+    '<div><div class="rot">melhor dia</div>' +
+      '<div class="val">' + brl(melhor.valor) + '</div>' +
+      '<div class="dia">dia ' + melhor.dia + ', ' + nomeDoDia(melhor.dia) + '</div></div>' +
+    '<div><div class="rot">mais fraco</div>' +
+      '<div class="val">' + brl(pior.valor) + '</div>' +
+      '<div class="dia">dia ' + pior.dia + ', ' + nomeDoDia(pior.dia) + '</div></div>' +
+    '</div>';
+}
+
+
+/**
  * A BARRA DA META
  *
  *   Enche conforme o mês avança. Ao bater os 300 mil ela fica verde e
@@ -1411,16 +1514,18 @@ function montarFaturamento() {
         : 'primeiro dia do mês — a média aparece a partir de amanhã')+
       (f.hoje?' · hoje já '+brl(f.hoje):'')+'</div>'+
     '<div class="colunas">'+colunas+'</div>'+
+    semanaDoMes_(f.serie) +
     '<div style="display:flex;justify-content:space-between;margin-top:8px"><span class="nota" style="margin:0">dia 1</span>'+
     '<span class="nota" style="margin:0;color:var(--dourado)">dia '+(f.serie.length?f.serie[f.serie.length-1].dia:'')+'</span></div>'+
     barraMeta_(f.acumulado, META_MES, precisaPorDia, diasQueSobram) +
+    extremosDoMes_(f.serie) +
     '</div>';
 
   h += '<div class="secao">Projeção de fechamento</div><div class="carta"><div class="faixa">'+
     '<div><span class="rotulo">piso</span><span class="num">'+curto(f.projecao.piso)+'</span></div>'+
     '<div class="centro" style="text-align:center"><span class="rotulo">provável</span><span class="num">'+curto(f.projecao.centro)+'</span></div>'+
     '<div style="text-align:right"><span class="rotulo">teto</span><span class="num">'+curto(f.projecao.teto)+'</span></div></div>'+
-    '<div class="nota">A distância entre o piso e o teto é a informação: mostra o quanto os meses anteriores variaram na segunda metade.</div></div>';
+    explicarProjecao_(f.projecao) + '</div>';
 
   if (f.anteriores && f.anteriores.length) {
     h += '<div class="secao">No mesmo dia dos meses anteriores</div><div class="carta">';
