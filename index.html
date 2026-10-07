@@ -239,6 +239,9 @@ textarea { min-height: 260px; font-size: 13px; line-height: 1.5;
 .extremos .val{font-size:15px;font-weight:600;margin-top:3px}
 .extremos .dia{font-size:11px;color:var(--texto-2);margin-top:2px}
 
+/* a etiqueta de pedido que demorou a ser pago */
+.etiqueta.pago{background:#2a2113;color:#C9A46A;border:1px solid #6B5327}
+
 /* a meta do mês: barra horizontal que enche conforme o dia */
 .meta-barra{position:relative;height:26px;border-radius:13px;background:#1a1613;
   overflow:hidden;margin-top:12px;border:1px solid #2a2320}
@@ -419,7 +422,7 @@ textarea { min-height: 260px; font-size: 13px; line-height: 1.5;
       <div class="nota" id="teste-rota" style="white-space:pre-wrap"></div>
       <button class="botao vazio" onclick="forcarAtualizacao()">BUSCAR VERSÃO NOVA</button>
       <div class="nota" style="text-align:center;margin-top:14px;opacity:.7">
-        versão <span id="cfg-versao">v33</span></div>
+        versão <span id="cfg-versao">v34</span></div>
     </div>
   </section>
 
@@ -685,6 +688,17 @@ function montarLista() {
           '<div class="oque">'+esc(resumo)+'</div>'+
           '<span class="etiqueta loja" style="background:'+(p.lojaCor||'#C9A46A')+'">'+esc(p.lojaCurto||'')+'</span>'+
           (p.juntos>1 ? '<span class="etiqueta junto">'+p.juntos+' compras juntas</span>' : '')+
+          /**
+           * PAGO DEPOIS
+           *   Quando o pagamento só foi aprovado dias após a compra — cartão
+           *   recusado, boleto, Pix pendente — o pedido é NOVO, mesmo que a
+           *   compra seja antiga. Sem isto, ele parece esquecido há uma
+           *   semana. A etiqueta diz quando a compra foi feita.
+           */
+          (p.pagoDepois && p.criadoCompra
+            ? '<span class="etiqueta pago">pago agora · comprou ' +
+              diaCurto_(p.criadoCompra) + '</span>'
+            : '')+
           (cotacoesProntas[idDe(p)] ? '<span class="etiqueta">cotado</span>' : '')+
         '</div>'+
         '<div class="dir"><div class="valor">'+brl(p.total)+'</div>'+
@@ -1449,6 +1463,17 @@ function barraMeta_(acumulado, meta, precisaPorDia, diasQueSobram) {
   }
 
   return h;
+}
+
+
+/** "29/09", para a etiqueta de quem pagou depois. */
+function diaCurto_(iso) {
+  try {
+    var d = new Date(iso);
+    var dd = String(d.getDate()).padStart(2, '0');
+    var mm = String(d.getMonth() + 1).padStart(2, '0');
+    return dd + '/' + mm;
+  } catch (e) { return ''; }
 }
 
 
