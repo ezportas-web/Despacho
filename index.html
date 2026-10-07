@@ -231,29 +231,13 @@ textarea { min-height: 260px; font-size: 13px; line-height: 1.5;
 .semana div.fds{color:#6B5327}
 
 /* o melhor e o pior dia */
-.extremos{display:flex;gap:10px;margin-top:12px}
-.extremos > div{flex:1;padding:10px;border-radius:10px;background:#1a1613;
-  border:1px solid #2a2320}
-.extremos .rot{font-size:10px;color:var(--texto-2);text-transform:uppercase;
-  letter-spacing:.5px}
-.extremos .val{font-size:15px;font-weight:600;margin-top:3px}
-.extremos .dia{font-size:11px;color:var(--texto-2);margin-top:2px}
-
-/* a etiqueta de pedido que demorou a ser pago */
-.etiqueta.pago{background:#2a2113;color:#C9A46A;border:1px solid #6B5327}
-
-/* a meta do mês: barra horizontal que enche conforme o dia */
-.meta-barra{position:relative;height:26px;border-radius:13px;background:#1a1613;
-  overflow:hidden;margin-top:12px;border:1px solid #2a2320}
-.meta-cheio{height:100%;border-radius:13px;
-  background:linear-gradient(90deg,#6B5327,#C9A46A);transition:width .6s ease}
-.meta-cheio.bateu{background:linear-gradient(90deg,#2E7D32,#66BB6A)}
-.meta-texto{position:absolute;top:0;left:0;right:0;height:100%;
-  display:flex;align-items:center;justify-content:center;
-  font-size:12px;font-weight:600;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.6)}
-.meta-parabens{margin-top:10px;padding:10px 12px;border-radius:10px;
-  background:rgba(46,125,50,.16);border:1px solid #2E7D32;
-  color:#8BC98E;font-size:13px;text-align:center}
+/* a projeção: um número grande e as duas parcelas que o formam */
+.proj-valor{font-size:30px;font-weight:600;color:var(--dourado-forte);line-height:1.1}
+.proj-parte{display:flex;justify-content:space-between;align-items:baseline;
+  padding:9px 0;border-top:1px solid var(--linha);font-size:14px}
+.proj-parte .rot{color:var(--texto-2)}
+.proj-parte .rot b{color:var(--texto);font-weight:600;display:block;font-size:13px}
+.proj-faixa{margin-top:10px;font-size:12px;color:var(--texto-2);text-align:center}
 
 /* a linha pontilhada do ritmo necessário, dentro do gráfico */
 .colunas{position:relative}
@@ -422,7 +406,7 @@ textarea { min-height: 260px; font-size: 13px; line-height: 1.5;
       <div class="nota" id="teste-rota" style="white-space:pre-wrap"></div>
       <button class="botao vazio" onclick="forcarAtualizacao()">BUSCAR VERSÃO NOVA</button>
       <div class="nota" style="text-align:center;margin-top:14px;opacity:.7">
-        versão <span id="cfg-versao">v34</span></div>
+        versão <span id="cfg-versao">v35</span></div>
     </div>
   </section>
 
@@ -592,6 +576,7 @@ function irPara(i) {
 }
 function marcarAba(i) {
   for (var n = 0; n < 4; n++) $('aba-' + n).classList.toggle('on', n === i);
+  marcarNoHistorico_(i);
   $('titulo').textContent = TITULOS[i];
   atualizarConta(i);
   if (i === 2 && !FAT) carregarFaturamento();
@@ -610,6 +595,54 @@ telas.addEventListener('scroll', function () {
 });
 
 function abaAtual() { return Math.round(telas.scrollLeft / telas.clientWidth); }
+
+// ===========================================================================
+// O BOTÃO VOLTAR DO APARELHO
+// ===========================================================================
+/**
+ * O PROBLEMA
+ *   No Android, o aplicativo instalado não tem histórico nenhum: a primeira
+ *   vez que você aperta voltar, ele FECHA. Trocar de aba deslizando não
+ *   deixa rastro, então não há para onde voltar — e você sai sem querer.
+ *
+ * O QUE FAZ AGORA
+ *   Cada troca de aba vira uma entrada no histórico. Voltar devolve a aba
+ *   anterior, na ordem em que você passou por elas.
+ *
+ *   Com a camada do envio aberta, voltar FECHA A CAMADA e fica — porque
+ *   sair do aplicativo no meio de um envio é o pior momento possível.
+ *
+ *   Só sai do aplicativo quem apertar voltar na primeira tela que abriu —
+ *   que é como todo aplicativo se comporta.
+ */
+var voltandoPeloBotao = false;
+
+function marcarNoHistorico_(i) {
+  if (voltandoPeloBotao) return;
+  var guardada = (history.state && typeof history.state.aba === 'number')
+    ? history.state.aba : null;
+  if (guardada === i) return;              // mesma aba: não empilha de novo
+  try { history.pushState({ aba: i }, ''); } catch (e) {}
+}
+
+window.addEventListener('popstate', function (ev) {
+  // 1) camada aberta: voltar fecha a camada e não sai
+  var cam = document.getElementById('camada');
+  if (cam && cam.classList.contains('on')) {
+    try { fecharCamada(); } catch (e) {}
+    try { history.pushState({ aba: abaAtual() }, ''); } catch (e) {}
+    return;
+  }
+
+  // 2) senão, volta para a aba de onde veio
+  var i = (ev.state && typeof ev.state.aba === 'number') ? ev.state.aba : 0;
+  voltandoPeloBotao = true;
+  telas.scrollTo({ left: telas.clientWidth * i, behavior: 'smooth' });
+  marcarAba(i);
+  setTimeout(function () { voltandoPeloBotao = false; }, 700);
+});
+
+try { history.replaceState({ aba: 0 }, ''); } catch (e) {}
 
 function recarregar() {
   var i = abaAtual();
@@ -1204,6 +1237,9 @@ function pintar(q) {}
 
 function abrirCamada() {
   camada.classList.add('on');
+  // dá ao botão voltar uma entrada para consumir fechando a camada,
+  // em vez de fechar o aplicativo no meio do envio
+  try { history.pushState({ aba: abaAtual(), camada: true }, ''); } catch (e) {}
   roda.style.display = 'block';
   certo.classList.remove('on'); erro.classList.remove('on');
   fechar.style.display = 'none';
@@ -1215,6 +1251,16 @@ function abrirCamada() {
 }
 function fecharCamada() {
   camada.classList.remove('on');
+  /**
+   * Fechando a camada pelo botão da tela, a entrada que o abrirCamada
+   * empilhou vira lixo: o próximo voltar seria um toque que não faz nada.
+   * Consome aqui — o popstate vê a bandeira e só reposiciona na mesma aba.
+   */
+  if (history.state && history.state.camada) {
+    voltandoPeloBotao = true;
+    try { history.back(); } catch (e) {}
+    setTimeout(function () { voltandoPeloBotao = false; }, 700);
+  }
   clearInterval(andando);
   fechar.textContent = 'ENTENDI';
   fechar.style.display = 'none';
@@ -1347,30 +1393,58 @@ async function carregarFaturamento() {
 }
 
 /**
- * DE ONDE SAIU A PROJEÇÃO
+ * A PROJEÇÃO DE FECHAMENTO
  *
- *   Ela não é mais a média vezes 30. Cada mês anterior é comparado com o
- *   MESMO DIA de hoje: se estamos 8% acima do que setembro tinha no dia 10,
- *   setembro inteiro mais 8% vira uma das projeções.
+ *   Até 07/10 eram três números (piso, provável, teto) saídos de uma regra
+ *   de três sobre o mês inteiro. Davam 90 mil de distância entre si e não
+ *   serviam para decidir nada — o Jonas disse, com razão, que era chute.
  *
- *   A faixa entre piso e teto é o quanto os meses discordam. Ela nasce
- *   larga e aperta conforme o mês avança — faixa estreita quer dizer que
- *   já dá para confiar.
+ *   Agora é uma soma, e metade dela não é estimativa:
+ *
+ *     REALIZADO   o que já entrou, dia 1 até ontem. Fato, da planilha.
+ *     FALTA       os dias que ainda não chegaram, pelo que os meses
+ *                 anteriores fizeram NESSES MESMOS DIAS, ajustado ao
+ *                 ritmo deste mês.
+ *
+ *   A parte que é fato cresce todo dia, e a estimada encolhe junto. É isso
+ *   que faz o número parar de dançar. A faixa embaixo é o quanto os meses
+ *   anteriores discordam entre si — ela aperta sozinha conforme o mês anda.
  */
-function explicarProjecao_(p) {
-  if (!p || !p.base || !p.base.length) {
-    return '<div class="nota">Ainda é cedo no mês para comparar com os anteriores — ' +
-           'estes números são o que eles fecharam.</div>';
+function cartaoProjecao_(p) {
+  if (!p) return '';
+
+  var temRegua = p.meses && p.meses.length;
+  // o ajuste que de fato entrou na conta — amortecido, não o ritmo cru
+  var ajuste = (typeof p.fator === 'number') ? Math.round((p.fator - 1) * 100) : null;
+
+  var h = '<div class="secao">Projeção de fechamento</div><div class="carta">' +
+    '<div class="proj-valor">' + brl(p.valor) + '</div>' +
+
+    '<div class="proj-parte" style="margin-top:12px">' +
+      '<span class="rot"><b>já realizado</b>dia 1 até ontem — é fato</span>' +
+      '<span>' + brl(p.realizado) + '</span></div>' +
+
+    '<div class="proj-parte">' +
+      '<span class="rot"><b>falta</b>' + p.diasQueFaltam + ' dia(s)' +
+        (temRegua
+          ? ', pelo que ' + esc(p.meses.join(', ')) + ' fizeram nestes mesmos dias'
+          : ' — sem mês anterior, estimado pela média deste mês') +
+        (ajuste && temRegua
+          ? '<br>com ' + (ajuste > 0 ? '+' : '') + ajuste + '% pelo ritmo deste mês'
+          : '') +
+      '</span>' +
+      '<span>' + brl(p.falta) + '</span></div>';
+
+  if (temRegua && p.teto > p.piso) {
+    h += '<div class="proj-faixa">os meses anteriores discordam entre ' +
+         curto(p.piso) + ' e ' + curto(p.teto) + '</div>';
+  }
+  if (!temRegua) {
+    h += '<div class="nota alerta" style="margin-top:10px">Estimativa fraca: ' +
+         'ainda não há mês anterior para servir de régua.</div>';
   }
 
-  var h = '<div class="nota">Pelo ritmo de hoje comparado ao mesmo dia de cada mês:</div>';
-  p.base.forEach(function (b) {
-    var pc = Math.round((b.ritmo - 1) * 100);
-    h += '<div class="linha-mes" style="color:var(--texto-2)">' +
-         '<span>' + esc(b.nome) + ' ' + (pc >= 0 ? '+' : '') + pc + '%</span>' +
-         '<span>' + brl(b.projetado) + '</span></div>';
-  });
-  return h;
+  return h + '</div>';
 }
 
 
@@ -1397,40 +1471,6 @@ function semanaDoMes_(serie) {
          letras[dia] + '</div>';
   });
   return h + '</div>';
-}
-
-
-/**
- * O MELHOR E O PIOR DIA DO MÊS
- *
- *   Dá o tamanho da variação real. Dia zerado não entra no pior: dia que
- *   ainda não chegou, ou domingo sem venda, não é "pior dia" — é dia sem
- *   movimento, e misturar os dois esconde a informação.
- */
-function extremosDoMes_(serie) {
-  var comValor = (serie || []).filter(function (x) { return x.valor > 0; });
-  if (comValor.length < 2) return '';
-
-  var melhor = comValor[0], pior = comValor[0];
-  comValor.forEach(function (x) {
-    if (x.valor > melhor.valor) melhor = x;
-    if (x.valor < pior.valor) pior = x;
-  });
-
-  var nomes = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
-  var agora = new Date();
-  function nomeDoDia(dia) {
-    return nomes[new Date(agora.getFullYear(), agora.getMonth(), dia).getDay()];
-  }
-
-  return '<div class="extremos">' +
-    '<div><div class="rot">melhor dia</div>' +
-      '<div class="val">' + brl(melhor.valor) + '</div>' +
-      '<div class="dia">dia ' + melhor.dia + ', ' + nomeDoDia(melhor.dia) + '</div></div>' +
-    '<div><div class="rot">mais fraco</div>' +
-      '<div class="val">' + brl(pior.valor) + '</div>' +
-      '<div class="dia">dia ' + pior.dia + ', ' + nomeDoDia(pior.dia) + '</div></div>' +
-    '</div>';
 }
 
 
@@ -1543,26 +1583,33 @@ function montarFaturamento() {
     '<div style="display:flex;justify-content:space-between;margin-top:8px"><span class="nota" style="margin:0">dia 1</span>'+
     '<span class="nota" style="margin:0;color:var(--dourado)">dia '+(f.serie.length?f.serie[f.serie.length-1].dia:'')+'</span></div>'+
     barraMeta_(f.acumulado, META_MES, precisaPorDia, diasQueSobram) +
-    extremosDoMes_(f.serie) +
     '</div>';
 
-  h += '<div class="secao">Projeção de fechamento</div><div class="carta"><div class="faixa">'+
-    '<div><span class="rotulo">piso</span><span class="num">'+curto(f.projecao.piso)+'</span></div>'+
-    '<div class="centro" style="text-align:center"><span class="rotulo">provável</span><span class="num">'+curto(f.projecao.centro)+'</span></div>'+
-    '<div style="text-align:right"><span class="rotulo">teto</span><span class="num">'+curto(f.projecao.teto)+'</span></div></div>'+
-    explicarProjecao_(f.projecao) + '</div>';
+  h += cartaoProjecao_(f.projecao);
 
-  if (f.anteriores && f.anteriores.length) {
-    h += '<div class="secao">No mesmo dia dos meses anteriores</div><div class="carta">';
-    f.anteriores.forEach(function(m){
-      var dif = f.acumulado - m.ateEsteDia, pc = m.ateEsteDia ? Math.round((dif/m.ateEsteDia)*100) : 0;
-      h += '<div class="linha-mes"><span>'+esc(m.nome)+'</span><span>'+brl(m.ateEsteDia)+' <span class="'+(dif>=0?'pos':'neg')+'">'+(dif>=0?'+':'')+pc+'%</span></span></div>';
-    });
-    f.anteriores.forEach(function(m){
-      h += '<div class="linha-mes" style="color:var(--texto-2)"><span>'+esc(m.nome)+' fechou</span><span>'+brl(m.total)+'</span></div>';
-    });
-    h += '</div>';
+  /**
+   * A COMPARAÇÃO, EM DUAS LINHAS
+   *
+   *   Eram seis linhas: cada mês anterior neste mesmo dia, e depois cada um
+   *   de novo com o fechamento. Dizia uma coisa só, em seis. Agora é a
+   *   MÉDIA dos meses anteriores — onde eles estavam neste ponto do mês, e
+   *   onde costumam fechar.
+   */
+  if (f.comparacao && f.comparacao.ateEsteDia) {
+    var c = f.comparacao;
+    var dif = f.acumulado - c.ateEsteDia;
+    var pc = Math.round((dif / c.ateEsteDia) * 100);
+
+    h += '<div class="secao">Média dos meses anteriores</div><div class="carta">' +
+      '<div class="linha-mes"><span>neste mesmo dia</span><span>' + brl(c.ateEsteDia) +
+        ' <span class="' + (dif >= 0 ? 'pos' : 'neg') + '">' +
+        (dif >= 0 ? '+' : '') + pc + '%</span></span></div>' +
+      '<div class="linha-mes" style="color:var(--texto-2)"><span>fechamento</span>' +
+        '<span>' + brl(c.fechamento) + '</span></div>' +
+      '<div class="nota">média de ' + c.meses + ' mês(es): ' + esc((c.nomes||[]).join(', ')) + '</div>' +
+      '</div>';
   }
+
   $('fat').innerHTML = h;
 }
 
