@@ -230,7 +230,20 @@ textarea { min-height: 260px; font-size: 13px; line-height: 1.5;
   letter-spacing:-.3px}
 .semana div.fds{color:#6B5327}
 
-/* o melhor e o pior dia */
+/* a barra da meta do mês */
+.meta-barra{position:relative;height:26px;border-radius:13px;overflow:hidden;
+  margin-top:14px;background:#1a1613;border:1px solid var(--linha)}
+.meta-cheio{height:100%;border-radius:13px 0 0 13px;
+  background:linear-gradient(90deg,#6B5327,var(--dourado-forte));
+  transition:width .6s cubic-bezier(.4,0,.2,1)}
+.meta-cheio.bateu{background:linear-gradient(90deg,#2E7D32,#66BB6A)}
+.meta-texto{position:absolute;top:0;left:0;right:0;height:100%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:12px;font-weight:600;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.meta-parabens{margin-top:10px;padding:10px 12px;border-radius:10px;
+  background:rgba(46,125,50,.16);border:1px solid #2E7D32;
+  color:#8BC98E;font-size:13px;text-align:center}
+
 /* a projeção: um número grande e as duas parcelas que o formam */
 .proj-valor{font-size:30px;font-weight:600;color:var(--dourado-forte);line-height:1.1}
 .proj-parte{display:flex;justify-content:space-between;align-items:baseline;
@@ -406,7 +419,7 @@ textarea { min-height: 260px; font-size: 13px; line-height: 1.5;
       <div class="nota" id="teste-rota" style="white-space:pre-wrap"></div>
       <button class="botao vazio" onclick="forcarAtualizacao()">BUSCAR VERSÃO NOVA</button>
       <div class="nota" style="text-align:center;margin-top:14px;opacity:.7">
-        versão <span id="cfg-versao">v35</span></div>
+        versão <span id="cfg-versao">v36</span></div>
     </div>
   </section>
 
@@ -1533,10 +1546,13 @@ function montarFaturamento() {
   }
   /**
    * A META DO MÊS
-   *   R$ 300 mil. Setembro fechou em 341 mil, então é alcançável — e é o
-   *   número que o Jonas usa para saber se o mês está no rumo.
+   *   R$ 350 mil desde 07/10. Era 300 mil, mas setembro já fechou em 341 —
+   *   uma meta que o mês passado bateu sozinha não serve de meta.
+   *
+   *   Mudar daqui: é o único lugar onde o número aparece. A barra, a linha
+   *   pontilhada do gráfico e o "quanto falta por dia" saem todos dele.
    */
-  var META_MES = 300000;
+  var META_MES = 350000;
 
   var diasNoMes = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
   var hoje = new Date().getDate();
@@ -1567,7 +1583,7 @@ function montarFaturamento() {
   var alturaLinha = Math.round((precisaPorDia / topo) * 100);
   if (precisaPorDia > 0 && alturaLinha <= 100) {
     colunas += '<div class="linha-meta" style="bottom:'+alturaLinha+'%">'+
-               '<span>'+brl(precisaPorDia)+'/dia para 300 mil</span></div>';
+               '<span>'+brl(precisaPorDia)+'/dia para '+curto(META_MES)+'</span></div>';
   }
 
   var h = '<div class="carta"><span class="rotulo">'+esc(f.mes)+' até agora</span>'+
