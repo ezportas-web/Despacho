@@ -1423,6 +1423,55 @@ async function carregarFaturamento() {
  *   que faz o número parar de dançar. A faixa embaixo é o quanto os meses
  *   anteriores discordam entre si — ela aperta sozinha conforme o mês anda.
  */
+/**
+ * QUANTAS PORTAS E QUANTOS PEDIDOS, POR CANAL
+ *
+ *   O faturamento diz quanto entrou. Não diz se entrou de muita venda
+ *   pequena ou de pouca venda grande — e são coisas diferentes de resolver.
+ *
+ *   A Fácil aparece partida em ML e MM porque são canais diferentes com o
+ *   mesmo CNPJ: na planilha os dois gravam "Fácil Shop", e o que separa é a
+ *   observação MADEIRAMADEIRA que o despacho da MM escreve.
+ *
+ *   "Outros itens" é tudo que foi vendido e não é porta — kit de trilho,
+ *   batente, trinco avulso. Fica numa linha discreta para os números
+ *   fecharem: porta + outros = tudo que saiu.
+ */
+function cartaoUnidades_(u) {
+  if (!u || !u.total) return '';
+  if (!u.total.pedidos && !u.total.portas) return '';
+
+  function linha(c, forte) {
+    if (!c) return '';
+    var estilo = forte
+      ? ' style="font-weight:600"'
+      : (c.pedidos || c.portas ? '' : ' style="color:var(--texto-3)"');
+    return '<div class="linha-mes"' + estilo + '>' +
+      '<span>' + esc(c.rotulo) + '</span>' +
+      '<span>' + c.portas + (c.portas === 1 ? ' porta' : ' portas') +
+      ' · ' + c.pedidos + (c.pedidos === 1 ? ' pedido' : ' pedidos') + '</span>' +
+      '</div>';
+  }
+
+  var h = '<div class="secao">Portas e pedidos do mês</div><div class="carta">' +
+    linha(u.facil) + linha(u.mm) + linha(u.domo) +
+    (u.outros && (u.outros.pedidos || u.outros.portas) ? linha(u.outros) : '') +
+    linha(u.total, true);
+
+  if (u.total.outrosItens) {
+    h += '<div class="nota">mais ' + u.total.outrosItens +
+         ' item(ns) que não são porta: kit de trilho, batente, trinco avulso.</div>';
+  }
+  if (u.semNome && u.semNome.length) {
+    h += '<div class="nota">SKU fora da tabela de nomes, contado como "não porta": ' +
+         esc(u.semNome.join(', ')) + '</div>';
+  }
+  if (u.erro) h += '<div class="nota">' + esc(u.erro) + '</div>';
+
+  return h + '</div>';
+}
+
+
 function cartaoProjecao_(p) {
   if (!p) return '';
 
@@ -1625,6 +1674,8 @@ function montarFaturamento() {
       '<div class="nota">média de ' + c.meses + ' mês(es): ' + esc((c.nomes||[]).join(', ')) + '</div>' +
       '</div>';
   }
+
+  h += cartaoUnidades_(f.unidades);
 
   $('fat').innerHTML = h;
 }
