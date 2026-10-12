@@ -1458,9 +1458,27 @@ function cartaoUnidades_(u) {
     (u.outros && (u.outros.pedidos || u.outros.portas) ? linha(u.outros) : '') +
     linha(u.total, true);
 
+  /**
+   * O ACERTO COM O RESUMO ANUAL
+   *
+   *   A planilha conta assim, e foi ela que serviu de prova em 11/10:
+   *
+   *      pedidos = COUNTIFS da coluna A por loja e mês   -> uma linha, um pedido
+   *      portas  = SUMIFS de J + M + P                   -> TODO item, sem olhar SKU
+   *
+   *   Ou seja, lá "porta" é qualquer produto. Aqui eu separo o que é porta
+   *   de verdade do que é kit de trilho ou batente — mais preciso, mas dá
+   *   um número diferente do que você vê na planilha.
+   *
+   *   Por isso a soma aparece com o nome dela ao lado: os dois números são
+   *   certos, e esta linha diz por que eles não são iguais.
+   */
   if (u.total.outrosItens) {
     h += '<div class="nota">mais ' + u.total.outrosItens +
-         ' item(ns) que não são porta: kit de trilho, batente, trinco avulso.</div>';
+         ' item(ns) que não são porta: kit de trilho, batente, trinco avulso.<br>' +
+         'total de ' + (u.total.portas + u.total.outrosItens) +
+         ' itens — é este que o RESUMO ANUAL mostra como "portas vendidas", ' +
+         'porque lá a conta soma tudo sem separar.</div>';
   }
   if (u.semNome && u.semNome.length) {
     h += '<div class="nota">SKU fora da tabela de nomes, contado como "não porta": ' +
