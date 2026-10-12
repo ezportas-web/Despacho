@@ -419,7 +419,7 @@ textarea { min-height: 260px; font-size: 13px; line-height: 1.5;
       <div class="nota" id="teste-rota" style="white-space:pre-wrap"></div>
       <button class="botao vazio" onclick="forcarAtualizacao()">BUSCAR VERSÃO NOVA</button>
       <div class="nota" style="text-align:center;margin-top:14px;opacity:.7">
-        versão <span id="cfg-versao">v36</span></div>
+        versão <span id="cfg-versao">v39</span></div>
     </div>
   </section>
 
@@ -1426,16 +1426,13 @@ async function carregarFaturamento() {
 /**
  * QUANTAS PORTAS E QUANTOS PEDIDOS, POR CANAL
  *
- *   O faturamento diz quanto entrou. Não diz se entrou de muita venda
- *   pequena ou de pouca venda grande — e são coisas diferentes de resolver.
+ *   Os números vêm da mesma conta da aba RESUMO ANUAL: pedido é linha da
+ *   planilha, porta é a soma das três colunas de quantidade.
  *
- *   A Fácil aparece partida em ML e MM porque são canais diferentes com o
- *   mesmo CNPJ: na planilha os dois gravam "Fácil Shop", e o que separa é a
- *   observação MADEIRAMADEIRA que o despacho da MM escreve.
- *
- *   "Outros itens" é tudo que foi vendido e não é porta — kit de trilho,
- *   batente, trinco avulso. Fica numa linha discreta para os números
- *   fecharem: porta + outros = tudo que saiu.
+ *   A única diferença é a MadeiraMadeira em linha separada. Lá ela está
+ *   somada dentro da Fácil, porque é o mesmo CNPJ e o mesmo nome na coluna
+ *   da loja — aqui sai à parte, que é como o Jonas acompanha. Fácil ML
+ *   mais Fácil MM tem de dar o número da planilha.
  */
 function cartaoUnidades_(u) {
   if (!u || !u.total) return '';
@@ -1449,7 +1446,7 @@ function cartaoUnidades_(u) {
     return '<div class="linha-mes"' + estilo + '>' +
       '<span>' + esc(c.rotulo) + '</span>' +
       '<span>' + c.portas + (c.portas === 1 ? ' porta' : ' portas') +
-      ' · ' + c.pedidos + (c.pedidos === 1 ? ' pedido' : ' pedidos') + '</span>' +
+      ' \u00b7 ' + c.pedidos + (c.pedidos === 1 ? ' pedido' : ' pedidos') + '</span>' +
       '</div>';
   }
 
@@ -1458,32 +1455,6 @@ function cartaoUnidades_(u) {
     (u.outros && (u.outros.pedidos || u.outros.portas) ? linha(u.outros) : '') +
     linha(u.total, true);
 
-  /**
-   * O ACERTO COM O RESUMO ANUAL
-   *
-   *   A planilha conta assim, e foi ela que serviu de prova em 11/10:
-   *
-   *      pedidos = COUNTIFS da coluna A por loja e mês   -> uma linha, um pedido
-   *      portas  = SUMIFS de J + M + P                   -> TODO item, sem olhar SKU
-   *
-   *   Ou seja, lá "porta" é qualquer produto. Aqui eu separo o que é porta
-   *   de verdade do que é kit de trilho ou batente — mais preciso, mas dá
-   *   um número diferente do que você vê na planilha.
-   *
-   *   Por isso a soma aparece com o nome dela ao lado: os dois números são
-   *   certos, e esta linha diz por que eles não são iguais.
-   */
-  if (u.total.outrosItens) {
-    h += '<div class="nota">mais ' + u.total.outrosItens +
-         ' item(ns) que não são porta: kit de trilho, batente, trinco avulso.<br>' +
-         'total de ' + (u.total.portas + u.total.outrosItens) +
-         ' itens — é este que o RESUMO ANUAL mostra como "portas vendidas", ' +
-         'porque lá a conta soma tudo sem separar.</div>';
-  }
-  if (u.semNome && u.semNome.length) {
-    h += '<div class="nota">SKU fora da tabela de nomes, contado como "não porta": ' +
-         esc(u.semNome.join(', ')) + '</div>';
-  }
   if (u.erro) h += '<div class="nota">' + esc(u.erro) + '</div>';
 
   return h + '</div>';
