@@ -159,6 +159,57 @@ nav button.on { color: var(--dourado); }
 .etiqueta.junto { border-color: #6B5327; color: var(--dourado); }
 .etiqueta.loja { border-color: transparent; color: #14100D; font-weight: 600; }
 
+/* ---------------------------------------------------------------------------
+   AS PORTAS DE GIRO — o selo, a conversa e o seletor de batente
+
+   O selo verde é o único neon do aplicativo, e é de propósito: ele quer dizer
+   "o cliente respondeu, tem coisa para você fazer". No meio do dourado e do
+   marrom ele salta, que é o trabalho dele.
+
+   O âmbar e o resolvido são discretos — esses não pedem nada de você.
+--------------------------------------------------------------------------- */
+.etiqueta.giro-resp {
+  border-color: #2E7D4F; color: #4AE88A; font-weight: 600;
+  box-shadow: 0 0 10px rgba(74,232,138,.35); background: rgba(74,232,138,.07);
+}
+.etiqueta.giro-espera { border-color: #6B4A27; color: var(--laranja); }
+.etiqueta.giro-ok { border-color: #3A4F33; color: var(--verde); }
+
+.chat {
+  margin-top: 14px; padding: 12px; border-radius: 12px;
+  background: var(--fundo-2); border: 1px solid var(--linha);
+}
+.chat .msg {
+  max-width: 85%; padding: 8px 11px; border-radius: 12px; margin-bottom: 8px;
+  font-size: 13.5px; line-height: 1.45; white-space: pre-wrap; word-break: break-word;
+}
+.chat .msg.nos { background: var(--carta-alta); color: var(--texto-2); margin-left: auto;
+                 border-bottom-right-radius: 3px; }
+.chat .msg.cliente { background: #22301F; color: var(--texto);
+                     border-bottom-left-radius: 3px; }
+.chat .quem { font-size: 10.5px; letter-spacing: .08em; color: var(--texto-3);
+              margin-bottom: 3px; text-transform: uppercase; }
+.chat .vazio-chat { color: var(--texto-3); font-size: 13px; text-align: center; padding: 10px 0; }
+
+.larguras { margin-top: 14px; }
+.larguras .unidade { margin-bottom: 12px; }
+.larguras .pergunta { font-size: 13px; color: var(--texto-2); margin-bottom: 7px; }
+.larguras .fileira { display: flex; gap: 7px; flex-wrap: wrap; }
+.larg {
+  flex: 1 1 52px; min-width: 52px; padding: 11px 0; border-radius: 10px;
+  border: 1px solid var(--linha); background: var(--carta); color: var(--texto-2);
+  font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer;
+}
+.larg.on { border-color: #4AE88A; color: #4AE88A; background: rgba(74,232,138,.12); }
+
+.botao.travado { opacity: .45; pointer-events: none; }
+.travado-aviso {
+  margin-top: 10px; padding: 11px 12px; border-radius: 10px; font-size: 13px;
+  background: rgba(211,146,79,.1); border: 1px solid #6B4A27; color: var(--laranja);
+}
+.conta-letras { font-size: 11.5px; color: var(--texto-3); text-align: right; margin-top: 4px; }
+.conta-letras.demais { color: var(--vermelho); }
+
 .item { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0;
         border-top: 1px solid var(--linha); font-size: 14px; }
 .item:first-of-type { border-top: 0; padding-top: 4px; }
@@ -419,7 +470,7 @@ textarea { min-height: 260px; font-size: 13px; line-height: 1.5;
       <div class="nota" id="teste-rota" style="white-space:pre-wrap"></div>
       <button class="botao vazio" onclick="forcarAtualizacao()">BUSCAR VERSÃO NOVA</button>
       <div class="nota" style="text-align:center;margin-top:14px;opacity:.7">
-        versão <span id="cfg-versao">v39</span></div>
+        versão <span id="cfg-versao">v40</span></div>
     </div>
   </section>
 
@@ -745,12 +796,42 @@ function montarLista() {
             ? '<span class="etiqueta pago">pago agora · comprou ' +
               diaCurto_(p.criadoCompra) + '</span>'
             : '')+
+          /**
+           * O SELO DAS PORTAS DE GIRO
+           *   Vem antes do "cotado" porque é mais urgente: sem a medida não
+           *   adianta ter o frete.
+           */
+          seloGiro_(p)+
           (cotacoesProntas[idDe(p)] ? '<span class="etiqueta">cotado</span>' : '')+
         '</div>'+
         '<div class="dir"><div class="valor">'+brl(p.total)+'</div>'+
           '<div class="tempo'+(p.dias>=2?' tarde':'')+'">'+tempo+'</div></div>'+
       '</div></button>';
   }).join('');
+}
+
+/**
+ * O SELO DE UMA PORTA DE GIRO, na lista.
+ *
+ *   'resolvido' mostra a largura escolhida, para você não precisar abrir de
+ *   novo só para lembrar qual era.
+ */
+function seloGiro_(p) {
+  if (!p.ehGiro) return '';
+
+  if (p.giroEstado === 'resolvido') {
+    var ls = [];
+    Object.keys(p.giroLarguras || {}).forEach(function (k) {
+      [].concat(p.giroLarguras[k] || []).forEach(function (cm) {
+        if (Number(cm) > 0) ls.push(cm);   // o 0 é unidade sem largura ainda
+      });
+    });
+    return '<span class="etiqueta giro-ok">batente ' + esc(ls.join(' / ')) + ' cm</span>';
+  }
+  if (p.giroEstado === 'respondeu') {
+    return '<span class="etiqueta giro-resp">RESPONDEU · ver medida</span>';
+  }
+  return '<span class="etiqueta giro-espera">aguardando medida</span>';
 }
 
 /** Toca num pedido: vai para a aba de cotação, na tela dele. */
@@ -761,6 +842,9 @@ function abrirPedido(i) {
   var trilho = $('trilho');
   setTimeout(function(){ trilho.scrollTo({ left: trilho.clientWidth * i, behavior: 'auto' }); }, 80);
   garantirCotacao(i);
+  // a conversa só é buscada quando você abre o pedido: é uma chamada por
+  // pedido, e puxar a de todos na abertura deixaria a lista lenta à toa
+  carregarChat(i, false);
 }
 
 // ===========================================================================
@@ -994,6 +1078,9 @@ function desenharPagina(i) {
     '<div><span class="rotulo">nota</span>'+brl(p.total)+'</div></div>';
   h += '</div>';
 
+  // ---- a conversa e a largura do batente, nas portas de giro ----
+  if (p.ehGiro) h += blocoGiro_(i, p);
+
   // ---- as cotações ----
   if (!c) {
     if (!cotando[id]) registrar('página de ' + id + ' desenhada SEM cotação (índice ' + i + ')');
@@ -1007,6 +1094,250 @@ function desenharPagina(i) {
 
   h += '<div class="nota" style="text-align:center;margin-top:22px">arraste para o lado ↔ próximo pedido</div>';
   pagina.innerHTML = h;
+
+  // o contador de letras só existe depois que o HTML entrou na tela
+  if (p.ehGiro) contarLetras(i);
+}
+
+// ===========================================================================
+// AS PORTAS DE GIRO — a conversa, a largura, a mensagem
+// ===========================================================================
+/**
+ * POR QUE ISTO EXISTE
+ *   Porta de giro vem com batente, e o batente é feito na espessura da
+ *   parede do cliente. Sem a medida não dá para produzir. O passo 0 da
+ *   planilha pede assim que a venda é paga; aqui você lê o que ele
+ *   respondeu e ESCOLHE a largura.
+ *
+ * A ESCOLHA É SUA, E DE PROPÓSITO
+ *   O sistema não adivinha o número dentro da frase. Em "comprei 2 portas,
+ *   a parede tem 14" existem dois candidatos, e errar aqui é porta cortada
+ *   errado — frete de ida, frete de volta e cliente irritado. Então eu
+ *   mostro o que ele escreveu e você toca na largura.
+ */
+var chats = {};        // { idDoPedido: { carregando, erro, mensagens } }
+var rascunho = {};     // { idDoPedido: texto da caixa de mensagem }
+var confirmando = {};  // { idDoPedido: true } — o envio pede dois toques
+
+function blocoGiro_(i, p) {
+  var id = idDe(p);
+  var c = chats[id];
+
+  var h = '<div class="secao">Medida da parede — porta de giro</div>';
+
+  // ---- a conversa ----
+  if (!c) {
+    h += '<div class="chat"><div class="vazio-chat">Carregando a conversa…</div></div>';
+  } else if (c.erro) {
+    h += '<div class="chat"><div class="vazio-chat">Não consegui ler a conversa: ' +
+         esc(c.erro) + '</div></div>' +
+         '<button class="botao vazio" onclick="carregarChat('+i+',true)">TENTAR DE NOVO</button>';
+  } else if (!c.mensagens || !c.mensagens.length) {
+    h += '<div class="chat"><div class="vazio-chat">Nenhuma mensagem ainda.</div></div>';
+  } else {
+    h += '<div class="chat">' + c.mensagens.map(function (m) {
+      return '<div class="msg '+(m.de==='nos'?'nos':'cliente')+'">'+
+             '<div class="quem">'+(m.de==='nos'?'nós':'cliente')+'</div>'+
+             esc(m.texto)+'</div>';
+    }).join('') + '</div>';
+  }
+
+  // ---- escrever para o cliente ----
+  h += '<textarea id="msg-'+esc(id)+'" placeholder="escrever para o cliente…" '+
+       'oninput="contarLetras('+i+')" style="margin-top:10px;min-height:70px">'+
+       esc(rascunho[id] || '') + '</textarea>'+
+       '<div class="conta-letras" id="conta-'+esc(id)+'"></div>'+
+       '<div style="display:flex;gap:8px;margin-top:6px">'+
+         '<button class="botao vazio" style="flex:1;margin:0" onclick="pedirDeNovo('+i+')">PEDIR A MEDIDA</button>'+
+         '<button class="botao" style="flex:1;margin:0" id="env-'+esc(id)+'" onclick="mandarMsg('+i+')">'+
+           (confirmando[id] ? 'TOQUE PARA CONFIRMAR' : 'ENVIAR') + '</button>'+
+       '</div>';
+
+  // ---- o seletor de largura, um por unidade ----
+  h += '<div class="larguras">';
+  var opcoes = p.giroOpcoes || [8, 10, 12, 14, 18];
+  var escolhidas = p.giroLarguras || {};
+  var achouGiro = false;
+
+  p.itens.forEach(function (it, idx) {
+    if (!ehGiroItem_(it, p)) return;
+    achouGiro = true;
+    var qtd = Number(it.qtd) || 1;
+    var atual = [].concat(escolhidas[String(idx)] || []);
+
+    for (var u = 0; u < qtd; u++) {
+      h += '<div class="unidade"><div class="pergunta">Largura do batente — '+
+           esc(it.nome)+(qtd > 1 ? ' <b>('+(u+1)+'ª de '+qtd+')</b>' : '')+'</div>'+
+           '<div class="fileira">'+
+           opcoes.map(function (cm) {
+             var on = Number(atual[u]) === Number(cm);
+             return '<button class="larg'+(on?' on':'')+'" '+
+                    'onclick="escolherLargura('+i+','+idx+','+u+','+cm+')">'+cm+'</button>';
+           }).join('') + '</div></div>';
+    }
+  });
+  h += '</div>';
+
+  if (!achouGiro) h += '<div class="nota">Nenhum item de giro neste pedido.</div>';
+  else if (!p.giroPronto) {
+    h += '<div class="travado-aviso">Escolha a largura antes de enviar. '+
+         'Porta de giro sai da fábrica com o batente já cortado.</div>';
+  }
+
+  return h;
+}
+
+/**
+ * ESTE ITEM É PORTA DE GIRO?
+ *   Quem decide é o motor, que manda a lista em c.itens quando o chat é
+ *   carregado. Enquanto ele não chegou, uso a mesma faixa de SKU — assim a
+ *   tela já desenha o seletor certo na primeira pintura, sem piscar.
+ */
+function ehGiroItem_(it, p) {
+  var c = chats[idDe(p)];
+  if (c && c.itens) {
+    for (var k = 0; k < c.itens.length; k++) {
+      if (c.itens[k].sku === it.sku) return !!c.itens[k].giro;
+    }
+  }
+  var n = parseInt(String(it.sku || '').replace(/\D/g, ''), 10);
+  return !isNaN(n) && n >= 1274 && n <= 1297;
+}
+
+/** Busca a conversa no motor. Só quando você abre o pedido. */
+async function carregarChat(i, forcar) {
+  var p = PEDIDOS[i]; if (!p || !p.ehGiro) return;
+  var id = idDe(p);
+  if (chats[id] && chats[id].carregando) return;
+  if (chats[id] && !forcar && !chats[id].erro) return;
+
+  chats[id] = { carregando: true };
+  desenharPagina(i);
+  try {
+    var d = await pedir('chat', { loja: p.loja, pedido: id, forcar: forcar ? '1' : '' });
+    chats[id] = { mensagens: d.mensagens || [], itens: d.itens || [],
+                  erro: d.ok ? '' : (d.motivo || 'não consegui ler') };
+    if (d.larguras) p.giroLarguras = d.larguras;
+    registrar('chat de ' + id + ': ' + (d.mensagens || []).length + ' mensagem(ns)');
+  } catch (e) {
+    chats[id] = { erro: e.message };
+    registrar('chat de ' + id + ' falhou: ' + e.message);
+  }
+  desenharPagina(i);
+}
+
+/**
+ * ESCOLHE A LARGURA e grava na hora.
+ *
+ *   Sem botão de "salvar": no celular, no galpão, um passo a mais é um
+ *   passo que se esquece — e aí o pedido trava no envio sem motivo claro.
+ *   Tocar na largura já grava.
+ *
+ *   Tocar de novo na mesma largura desmarca, para corrigir engano.
+ */
+async function escolherLargura(i, item, unidade, cm) {
+  var p = PEDIDOS[i]; if (!p) return;
+  var id = idDe(p);
+
+  p.giroLarguras = p.giroLarguras || {};
+  var atual = [].concat(p.giroLarguras[String(item)] || []);
+  atual[unidade] = (Number(atual[unidade]) === Number(cm)) ? 0 : Number(cm);
+  p.giroLarguras[String(item)] = atual;
+
+  desenharPagina(i);   // responde ao toque na hora, antes de falar com o motor
+
+  /**
+   * MANDO O ARRAY INTEIRO, COM OS ZEROS.
+   *
+   *   Cada posição é uma unidade da venda. Tirar o zero do meio faria a
+   *   largura da 2ª porta reaparecer na 1ª quando o aplicativo recarregasse
+   *   — a largura certa, na porta errada. O motor guarda a posição e ignora
+   *   o zero na hora de usar.
+   */
+  var limpo = {};
+  Object.keys(p.giroLarguras).forEach(function (k) {
+    var v = [].concat(p.giroLarguras[k]).map(function (x) { return Number(x) || 0; });
+    if (v.some(function (x) { return x > 0; })) limpo[k] = v;
+  });
+
+  try {
+    var d = await pedir('batente', { loja: p.loja, pedido: id,
+                                     larguras: JSON.stringify(limpo) });
+    p.giroLarguras = d.larguras || {};
+    p.giroPronto = !!d.pronto;
+    p.giroEstado = d.pronto ? 'resolvido' : (p.giroEstado === 'resolvido' ? 'respondeu' : p.giroEstado);
+    registrar('batente de ' + id + ' gravado: ' + JSON.stringify(d.larguras));
+  } catch (e) {
+    registrar('não gravei o batente de ' + id + ': ' + e.message);
+    avisar('Não consegui gravar a largura: ' + e.message);
+  }
+  desenharPagina(i);
+  montarLista();
+}
+
+/** Põe na caixa o texto que o passo 0 manda, para cutucar quem não respondeu. */
+function pedirDeNovo(i) {
+  var p = PEDIDOS[i]; if (!p) return;
+  var id = idDe(p);
+  rascunho[id] =
+    'Olá! Para produzir sua porta eu preciso da medida da parede: na lateral ' +
+    'do vão, de uma face até a outra. Pode me mandar esse número por aqui? ' +
+    'Assim que chegar eu já libero a produção.';
+  confirmando[id] = false;
+  desenharPagina(i);
+}
+
+function contarLetras(i) {
+  var p = PEDIDOS[i]; if (!p) return;
+  var id = idDe(p);
+  var cx = $('msg-' + id), onde = $('conta-' + id);
+  if (!cx || !onde) return;
+  rascunho[id] = cx.value;
+  var n = cx.value.length;
+  onde.textContent = n + ' / 350';
+  onde.className = 'conta-letras' + (n > 350 ? ' demais' : '');
+  // mudou o texto: a confirmação volta à estaca zero
+  if (confirmando[id]) { confirmando[id] = false; var b = $('env-' + id); if (b) b.textContent = 'ENVIAR'; }
+}
+
+/**
+ * MANDA A MENSAGEM — com dois toques.
+ *
+ *   Mensagem enviada não volta atrás. No celular, no galpão, com a mão
+ *   suja, um toque errado vira mensagem para o cliente. O primeiro toque
+ *   arma, o segundo manda.
+ */
+async function mandarMsg(i) {
+  var p = PEDIDOS[i]; if (!p) return;
+  var id = idDe(p);
+  var cx = $('msg-' + id);
+  var texto = (cx && cx.value || '').trim();
+  if (!texto) { avisar('Escreva a mensagem antes.'); return; }
+  if (texto.length > 350) { avisar('O Mercado Livre não aceita mais de 350 letras. Corte um pouco.'); return; }
+
+  var botao = $('env-' + id);
+  if (!confirmando[id]) {
+    confirmando[id] = true;
+    if (botao) botao.textContent = 'TOQUE PARA CONFIRMAR';
+    setTimeout(function () {
+      if (confirmando[id]) { confirmando[id] = false; var b = $('env-' + id); if (b) b.textContent = 'ENVIAR'; }
+    }, 6000);
+    return;
+  }
+
+  confirmando[id] = false;
+  if (botao) { botao.textContent = 'ENVIANDO…'; botao.classList.add('travado'); }
+
+  try {
+    await pedir('mandar', { loja: p.loja, pedido: id, texto: texto });
+    rascunho[id] = '';
+    registrar('mensagem enviada em ' + id);
+    await carregarChat(i, true);     // a conversa já mostra a que acabou de sair
+  } catch (e) {
+    registrar('não enviei a mensagem de ' + id + ': ' + e.message);
+    avisar('Não consegui enviar: ' + e.message);
+    desenharPagina(i);
+  }
 }
 
 function montarCotacoes(i, c, d) {
@@ -1229,6 +1560,16 @@ function montarEnvio(i, p, c) {
     h += '<input id="rastreio-'+esc(id)+'" type="text" placeholder="código de rastreio (opcional)" style="margin-top:10px">';
   }
 
+  /**
+   * A TRAVA DAS PORTAS DE GIRO
+   *   Sem a largura do batente escolhida, o botão não funciona. O motor
+   *   também recusa — esta é a primeira tranca, a que você vê.
+   */
+  if (p.ehGiro && !p.giroPronto) {
+    return h + '<button class="botao travado">ESCOLHA A LARGURA DO BATENTE</button>' +
+      '<div class="travado-aviso">Role para cima: a largura fica logo abaixo da conversa.</div>';
+  }
+
   return h + '<button class="botao" onclick="enviar('+i+')">ENVIAR POR '+esc(e.t)+'</button>';
 }
 
@@ -1386,6 +1727,26 @@ function deuCerto(i, resultado) {
   } else {
     setTimeout(seguir, 2600);
   }
+}
+
+/**
+ * UM AVISO SIMPLES, na mesma camada do envio.
+ *
+ *   Não chamo abrirCamada() de propósito: ela empilha uma entrada no
+ *   histórico para o botão voltar consumir durante o envio, e isso só faz
+ *   sentido quando há um envio em curso. Aqui é só um recado.
+ */
+function avisar(texto) {
+  clearInterval(andando);
+  seguirDepois = null;
+  camada.classList.add('on');
+  roda.style.display = 'none';
+  certo.classList.remove('on');
+  erro.classList.add('on');
+  recado.textContent = 'não deu';
+  detalheCamada.textContent = texto;
+  fechar.textContent = 'ENTENDI';
+  fechar.style.display = 'block';
 }
 
 function naoFoi(motivo) {
