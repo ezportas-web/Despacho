@@ -470,7 +470,7 @@ textarea { min-height: 260px; font-size: 13px; line-height: 1.5;
       <div class="nota" id="teste-rota" style="white-space:pre-wrap"></div>
       <button class="botao vazio" onclick="forcarAtualizacao()">BUSCAR VERSÃO NOVA</button>
       <div class="nota" style="text-align:center;margin-top:14px;opacity:.7">
-        versão <span id="cfg-versao">v40</span></div>
+        versão <span id="cfg-versao">v41</span></div>
     </div>
   </section>
 
@@ -1279,10 +1279,16 @@ async function escolherLargura(i, item, unidade, cm) {
 function pedirDeNovo(i) {
   var p = PEDIDOS[i]; if (!p) return;
   var id = idDe(p);
+  /**
+   * O MESMO TEXTO DO PASSO 0, menos o "obrigado pela compra"
+   *   Aqui é a segunda cobrança: a pessoa já recebeu a primeira e não
+   *   respondeu. Repetir o agradecimento soa a robô que não percebeu.
+   */
   rascunho[id] =
-    'Olá! Para produzir sua porta eu preciso da medida da parede: na lateral ' +
-    'do vão, de uma face até a outra. Pode me mandar esse número por aqui? ' +
-    'Assim que chegar eu já libero a produção.';
+    'Olá! Para dar seguimento ao seu pedido, precisamos confirmar a largura ' +
+    'do batente que acompanha a porta. Caso não tenha certeza, basta medir a ' +
+    'espessura da parede onde ele será instalado e nos informar essa medida ' +
+    'por aqui.';
   confirmando[id] = false;
   desenharPagina(i);
 }
