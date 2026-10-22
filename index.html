@@ -470,7 +470,7 @@ textarea { min-height: 260px; font-size: 13px; line-height: 1.5;
       <div class="nota" id="teste-rota" style="white-space:pre-wrap"></div>
       <button class="botao vazio" onclick="forcarAtualizacao()">BUSCAR VERSÃO NOVA</button>
       <div class="nota" style="text-align:center;margin-top:14px;opacity:.7">
-        versão <span id="cfg-versao">v41</span></div>
+        versão <span id="cfg-versao">v42</span></div>
     </div>
   </section>
 
@@ -1265,6 +1265,31 @@ async function escolherLargura(i, item, unidade, cm) {
                                      larguras: JSON.stringify(limpo) });
     p.giroLarguras = d.larguras || {};
     p.giroPronto = !!d.pronto;
+
+    /**
+     * O TEXTO DO ROMANEIO É REFEITO AQUI (22/10)
+     *
+     *   O escopoBase vem junto com a cotação, que é feita em segundo plano
+     *   assim que o aplicativo abre — ou seja, ANTES de você escolher a
+     *   largura. Por isso o romaneio saía dizendo "batente não informado"
+     *   mesmo com o botão verde na tela.
+     *
+     *   O motor agora devolve o texto refeito. Troco aqui, e também na
+     *   caixa que já estiver aberta.
+     */
+    if (d.escopoBase && cotacoesProntas[id]) {
+      cotacoesProntas[id].escopoBase = d.escopoBase;
+      var caixa = $('escopo-' + id);
+      if (caixa && escolhas[id]) {
+        var e = escolhas[id];
+        var peso = Number(p.peso || 0).toFixed(2).replace('.', ',');
+        caixa.value = d.escopoBase +
+          '\n\nTRANSPORTADORA: ' + e.t +
+          '\nNÚMERO DA COTAÇÃO: ' + (e.cotacao || '') +
+          '\nPESO (KG): ' + peso +
+          '\nVALOR DO FRETE: ' + brl(e.v);
+      }
+    }
     p.giroEstado = d.pronto ? 'resolvido' : (p.giroEstado === 'resolvido' ? 'respondeu' : p.giroEstado);
     registrar('batente de ' + id + ' gravado: ' + JSON.stringify(d.larguras));
   } catch (e) {
