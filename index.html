@@ -196,11 +196,18 @@ nav button.on { color: var(--dourado); }
 .larguras .pergunta { font-size: 13px; color: var(--texto-2); margin-bottom: 7px; }
 .larguras .fileira { display: flex; gap: 7px; flex-wrap: wrap; }
 .larg {
-  flex: 1 1 52px; min-width: 52px; padding: 11px 0; border-radius: 10px;
+  flex: 1 1 64px; min-width: 64px; padding: 9px 0 7px; border-radius: 10px;
   border: 1px solid var(--linha); background: var(--carta); color: var(--texto-2);
   font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer;
+  line-height: 1.15;
 }
 .larg.on { border-color: #4AE88A; color: #4AE88A; background: rgba(74,232,138,.12); }
+/* o número do batente, embaixo e discreto: é o que vai no romaneio */
+.larg .sub-larg {
+  display: block; font-size: 10.5px; font-weight: 400; color: var(--texto-3);
+  margin-top: 3px; letter-spacing: .02em;
+}
+.larg.on .sub-larg { color: #4AE88A; opacity: .75; }
 
 .botao.travado { opacity: .45; pointer-events: none; }
 .travado-aviso {
@@ -468,7 +475,7 @@ textarea { min-height: 260px; font-size: 13px; line-height: 1.5;
       <div class="nota" id="teste-rota" style="white-space:pre-wrap"></div>
       <button class="botao vazio" onclick="forcarAtualizacao()">BUSCAR VERSÃO NOVA</button>
       <div class="nota" style="text-align:center;margin-top:14px;opacity:.7">
-        versão <span id="cfg-versao">v43</span></div>
+        versão <span id="cfg-versao">v44</span></div>
     </div>
   </section>
 
@@ -1155,9 +1162,20 @@ function blocoGiro_(i, p) {
   h += '<button class="botao vazio" onclick="carregarChat('+i+',true)" ' +
        'style="margin-top:8px">ATUALIZAR A CONVERSA</button>';
 
-  // ---- o seletor de largura, um por unidade ----
+  /**
+   * O BOTÃO MOSTRA A PAREDE, NÃO O BATENTE (22/10)
+   *
+   *   O número do batente é MENOR que a parede que ele atende — o de 8
+   *   serve para paredes de até 10. É contraintuitivo, e confunde na hora
+   *   de converter a medida que o cliente mandou.
+   *
+   *   Então o botão grande diz "até 10 cm", que é o que você compara com a
+   *   resposta do cliente, e embaixo, pequeno, "batente 8", que é o que
+   *   vai no romaneio. O que fica guardado continua sendo o 8.
+   */
   h += '<div class="larguras">';
   var opcoes = p.giroOpcoes || [8, 10, 12, 14, 18];
+  var parede = p.giroParede || { 8: 10, 10: 12, 12: 14, 14: 17, 18: 21 };
   var escolhidas = p.giroLarguras || {};
   var achouGiro = false;
 
@@ -1168,13 +1186,16 @@ function blocoGiro_(i, p) {
     var atual = [].concat(escolhidas[String(idx)] || []);
 
     for (var u = 0; u < qtd; u++) {
-      h += '<div class="unidade"><div class="pergunta">Largura do batente — '+
+      h += '<div class="unidade"><div class="pergunta">Espessura da parede — '+
            esc(it.nome)+(qtd > 1 ? ' <b>('+(u+1)+'ª de '+qtd+')</b>' : '')+'</div>'+
            '<div class="fileira">'+
            opcoes.map(function (cm) {
              var on = Number(atual[u]) === Number(cm);
+             var ate = parede[cm] || cm;
              return '<button class="larg'+(on?' on':'')+'" '+
-                    'onclick="escolherLargura('+i+','+idx+','+u+','+cm+')">'+cm+'</button>';
+                    'onclick="escolherLargura('+i+','+idx+','+u+','+cm+')">'+
+                    'até '+ate+'<span class="sub-larg">batente '+cm+'</span>'+
+                    '</button>';
            }).join('') + '</div></div>';
     }
   });
@@ -1182,7 +1203,7 @@ function blocoGiro_(i, p) {
 
   if (!achouGiro) h += '<div class="nota">Nenhum item de giro neste pedido.</div>';
   else if (!p.giroPronto) {
-    h += '<div class="travado-aviso">Escolha a largura antes de enviar. '+
+    h += '<div class="travado-aviso">Escolha a espessura da parede antes de enviar. '+
          'Porta de giro sai da fábrica com o batente já cortado.</div>';
   }
 
