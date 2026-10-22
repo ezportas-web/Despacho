@@ -207,8 +207,6 @@ nav button.on { color: var(--dourado); }
   margin-top: 10px; padding: 11px 12px; border-radius: 10px; font-size: 13px;
   background: rgba(211,146,79,.1); border: 1px solid #6B4A27; color: var(--laranja);
 }
-.conta-letras { font-size: 11.5px; color: var(--texto-3); text-align: right; margin-top: 4px; }
-.conta-letras.demais { color: var(--vermelho); }
 
 .item { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0;
         border-top: 1px solid var(--linha); font-size: 14px; }
@@ -470,7 +468,7 @@ textarea { min-height: 260px; font-size: 13px; line-height: 1.5;
       <div class="nota" id="teste-rota" style="white-space:pre-wrap"></div>
       <button class="botao vazio" onclick="forcarAtualizacao()">BUSCAR VERSÃO NOVA</button>
       <div class="nota" style="text-align:center;margin-top:14px;opacity:.7">
-        versão <span id="cfg-versao">v42</span></div>
+        versão <span id="cfg-versao">v43</span></div>
     </div>
   </section>
 
@@ -1094,9 +1092,6 @@ function desenharPagina(i) {
 
   h += '<div class="nota" style="text-align:center;margin-top:22px">arraste para o lado ↔ próximo pedido</div>';
   pagina.innerHTML = h;
-
-  // o contador de letras só existe depois que o HTML entrou na tela
-  if (p.ehGiro) contarLetras(i);
 }
 
 // ===========================================================================
@@ -1116,24 +1111,33 @@ function desenharPagina(i) {
  *   mostro o que ele escreveu e você toca na largura.
  */
 var chats = {};        // { idDoPedido: { carregando, erro, mensagens } }
-var rascunho = {};     // { idDoPedido: texto da caixa de mensagem }
-var confirmando = {};  // { idDoPedido: true } — o envio pede dois toques
 
 function blocoGiro_(i, p) {
   var id = idDe(p);
   var c = chats[id];
 
+  /**
+   * AQUI SÓ SE LÊ (22/10)
+   *
+   *   Tinha caixa de texto, "PEDIR A MEDIDA" e "ENVIAR". Saíram: o pedido
+   *   de medida virou automático, de 5 em 5 minutos, e não há mais o que
+   *   escrever daqui. O que o app precisa é mostrar a conversa como ela
+   *   está no Mercado Livre — um espelho.
+   *
+   *   Menos botão também é menos chance de mandar mensagem sem querer com
+   *   o celular na mão no galpão.
+   */
   var h = '<div class="secao">Medida da parede — porta de giro</div>';
 
   // ---- a conversa ----
-  if (!c) {
+  if (!c || c.carregando) {
     h += '<div class="chat"><div class="vazio-chat">Carregando a conversa…</div></div>';
   } else if (c.erro) {
     h += '<div class="chat"><div class="vazio-chat">Não consegui ler a conversa: ' +
-         esc(c.erro) + '</div></div>' +
-         '<button class="botao vazio" onclick="carregarChat('+i+',true)">TENTAR DE NOVO</button>';
+         esc(c.erro) + '</div></div>';
   } else if (!c.mensagens || !c.mensagens.length) {
-    h += '<div class="chat"><div class="vazio-chat">Nenhuma mensagem ainda.</div></div>';
+    h += '<div class="chat"><div class="vazio-chat">Nenhuma mensagem ainda. ' +
+         'O pedido de medida sai sozinho, a cada 5 minutos.</div></div>';
   } else {
     h += '<div class="chat">' + c.mensagens.map(function (m) {
       return '<div class="msg '+(m.de==='nos'?'nos':'cliente')+'">'+
@@ -1142,16 +1146,14 @@ function blocoGiro_(i, p) {
     }).join('') + '</div>';
   }
 
-  // ---- escrever para o cliente ----
-  h += '<textarea id="msg-'+esc(id)+'" placeholder="escrever para o cliente…" '+
-       'oninput="contarLetras('+i+')" style="margin-top:10px;min-height:70px">'+
-       esc(rascunho[id] || '') + '</textarea>'+
-       '<div class="conta-letras" id="conta-'+esc(id)+'"></div>'+
-       '<div style="display:flex;gap:8px;margin-top:6px">'+
-         '<button class="botao vazio" style="flex:1;margin:0" onclick="pedirDeNovo('+i+')">PEDIR A MEDIDA</button>'+
-         '<button class="botao" style="flex:1;margin:0" id="env-'+esc(id)+'" onclick="mandarMsg('+i+')">'+
-           (confirmando[id] ? 'TOQUE PARA CONFIRMAR' : 'ENVIAR') + '</button>'+
-       '</div>';
+  /**
+   * O BOTÃO DE ATUALIZAR A CONVERSA
+   *   A conversa fica 2 minutos guardada, senão cada abertura de pedido
+   *   seria uma consulta ao Mercado Livre. Quando você sabe que o cliente
+   *   acabou de responder, este botão ignora o guardado e busca de novo.
+   */
+  h += '<button class="botao vazio" onclick="carregarChat('+i+',true)" ' +
+       'style="margin-top:8px">ATUALIZAR A CONVERSA</button>';
 
   // ---- o seletor de largura, um por unidade ----
   h += '<div class="larguras">';
@@ -1300,76 +1302,12 @@ async function escolherLargura(i, item, unidade, cm) {
   montarLista();
 }
 
-/** Põe na caixa o texto que o passo 0 manda, para cutucar quem não respondeu. */
-function pedirDeNovo(i) {
-  var p = PEDIDOS[i]; if (!p) return;
-  var id = idDe(p);
-  /**
-   * O MESMO TEXTO DO PASSO 0, menos o "obrigado pela compra"
-   *   Aqui é a segunda cobrança: a pessoa já recebeu a primeira e não
-   *   respondeu. Repetir o agradecimento soa a robô que não percebeu.
-   */
-  rascunho[id] =
-    'Olá! Para dar seguimento ao seu pedido, precisamos confirmar a largura ' +
-    'do batente que acompanha a porta. Caso não tenha certeza, basta medir a ' +
-    'espessura da parede onde ele será instalado e nos informar essa medida ' +
-    'por aqui.';
-  confirmando[id] = false;
-  desenharPagina(i);
-}
-
-function contarLetras(i) {
-  var p = PEDIDOS[i]; if (!p) return;
-  var id = idDe(p);
-  var cx = $('msg-' + id), onde = $('conta-' + id);
-  if (!cx || !onde) return;
-  rascunho[id] = cx.value;
-  var n = cx.value.length;
-  onde.textContent = n + ' / 350';
-  onde.className = 'conta-letras' + (n > 350 ? ' demais' : '');
-  // mudou o texto: a confirmação volta à estaca zero
-  if (confirmando[id]) { confirmando[id] = false; var b = $('env-' + id); if (b) b.textContent = 'ENVIAR'; }
-}
-
 /**
- * MANDA A MENSAGEM — com dois toques.
- *
- *   Mensagem enviada não volta atrás. No celular, no galpão, com a mão
- *   suja, um toque errado vira mensagem para o cliente. O primeiro toque
- *   arma, o segundo manda.
+ * As funções de ESCREVER saíram em 22/10 — pedirDeNovo, contarLetras e
+ * mandarMsg. O pedido de medida virou automático (gatilho de 5 minutos no
+ * BOTOES_DA_PLANILHA.gs), e a tela do pedido passou a ser só um espelho do
+ * que está no Mercado Livre.
  */
-async function mandarMsg(i) {
-  var p = PEDIDOS[i]; if (!p) return;
-  var id = idDe(p);
-  var cx = $('msg-' + id);
-  var texto = (cx && cx.value || '').trim();
-  if (!texto) { avisar('Escreva a mensagem antes.'); return; }
-  if (texto.length > 350) { avisar('O Mercado Livre não aceita mais de 350 letras. Corte um pouco.'); return; }
-
-  var botao = $('env-' + id);
-  if (!confirmando[id]) {
-    confirmando[id] = true;
-    if (botao) botao.textContent = 'TOQUE PARA CONFIRMAR';
-    setTimeout(function () {
-      if (confirmando[id]) { confirmando[id] = false; var b = $('env-' + id); if (b) b.textContent = 'ENVIAR'; }
-    }, 6000);
-    return;
-  }
-
-  confirmando[id] = false;
-  if (botao) { botao.textContent = 'ENVIANDO…'; botao.classList.add('travado'); }
-
-  try {
-    await pedir('mandar', { loja: p.loja, pedido: id, texto: texto });
-    rascunho[id] = '';
-    registrar('mensagem enviada em ' + id);
-    await carregarChat(i, true);     // a conversa já mostra a que acabou de sair
-  } catch (e) {
-    registrar('não enviei a mensagem de ' + id + ': ' + e.message);
-    avisar('Não consegui enviar: ' + e.message);
-    desenharPagina(i);
-  }
-}
 
 function montarCotacoes(i, c, d) {
   var p = PEDIDOS[i], id = idDe(p);
