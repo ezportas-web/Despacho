@@ -150,6 +150,7 @@ nav button.on { color: var(--dourado); }
 .pedido .valor { font-size: 15px; color: var(--dourado-forte); font-weight: 500; }
 .pedido .tempo { font-size: 12px; color: var(--texto-3); }
 .pedido .tempo.tarde { color: var(--laranja); }
+.pedido .tempo .quando { font-size: 12px; color: var(--texto-2, #CFC6BA); white-space: nowrap; }
 
 .etiqueta {
   display: inline-block; font-size: 11px; letter-spacing: .06em;
@@ -475,7 +476,7 @@ textarea { min-height: 260px; font-size: 13px; line-height: 1.5;
       <div class="nota" id="teste-rota" style="white-space:pre-wrap"></div>
       <button class="botao vazio" onclick="forcarAtualizacao()">BUSCAR VERSÃO NOVA</button>
       <div class="nota" style="text-align:center;margin-top:14px;opacity:.7">
-        versão <span id="cfg-versao">v45</span></div>
+        versão <span id="cfg-versao">v46</span></div>
     </div>
   </section>
 
@@ -780,7 +781,17 @@ function montarLista() {
   }
   $('lista').innerHTML = PEDIDOS.map(function(p, i){
     var resumo = p.itens.map(function(x){ return x.qtd+'× '+x.nome; }).join(' + ');
+    /**
+     * DIA E HORA DA VENDA (05/11/2026)
+     *   Antes só aparecia "hoje / ontem / há X dias", e a conta vinha da
+     *   CRIAÇÃO do pedido: compra criada dia 31 e paga hoje aparecia
+     *   "há 5 dias". O motor (v2) agora manda a data do PAGAMENTO aprovado,
+     *   com a hora, e conta os dias pelo calendário de Brasília.
+     *   Linha 1: hoje / ontem / há X dias.   Linha 2: 05/11 14:32.
+     *   Pedidos da MM vêm do Bling, que só guarda o dia: aparece "05/11".
+     */
     var tempo = p.dias >= 2 ? 'há ' + p.dias + ' dias' : (p.dias === 1 ? 'ontem' : 'hoje');
+    if (p.quando) tempo += '<br><span class="quando">' + esc(p.quando) + '</span>';
     return '<button class="carta toque" id="carta-' + esc(idDe(p)) + '" onclick="abrirPedido('+i+')">'+
       '<div class="pedido">'+
         '<div class="selo">'+esc(iniciais(p.cliente))+'</div>'+
@@ -798,7 +809,7 @@ function montarLista() {
            *   semana. A etiqueta diz quando a compra foi feita.
            */
           (p.pagoDepois && p.criadoCompra
-            ? '<span class="etiqueta pago">pago agora · comprou ' +
+            ? '<span class="etiqueta pago">pago depois · comprou ' +
               diaCurto_(p.criadoCompra) + '</span>'
             : '')+
           /**
