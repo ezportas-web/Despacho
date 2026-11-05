@@ -476,7 +476,7 @@ textarea { min-height: 260px; font-size: 13px; line-height: 1.5;
       <div class="nota" id="teste-rota" style="white-space:pre-wrap"></div>
       <button class="botao vazio" onclick="forcarAtualizacao()">BUSCAR VERSÃO NOVA</button>
       <div class="nota" style="text-align:center;margin-top:14px;opacity:.7">
-        versão <span id="cfg-versao">v46</span></div>
+        versão <span id="cfg-versao">v47</span></div>
     </div>
   </section>
 
@@ -817,6 +817,13 @@ function montarLista() {
            *   Vem antes do "cotado" porque é mais urgente: sem a medida não
            *   adianta ter o frete.
            */
+          /**
+           * PEDIDO DA MM QUE AINDA NÃO CHEGOU NO BLING (05/11/2026)
+           *   Os pedidos da MM agora vêm direto da MM. A nota é emitida no
+           *   Bling — se o pedido ainda não chegou lá, o Everton não consegue
+           *   faturar. O selo avisa antes.
+           */
+          (p.aviso ? '<span class="etiqueta giro-espera">' + esc(p.aviso) + '</span>' : '')+
           seloGiro_(p)+
           (cotacoesProntas[idDe(p)] ? '<span class="etiqueta">cotado</span>' : '')+
         '</div>'+
