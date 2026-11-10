@@ -409,7 +409,7 @@ nav button { position: relative; }
 .pergunta .acoes .botao.vazio { flex: 0 0 34%; }
 .pergunta .ia { font-size: 11px; color: var(--dourado); letter-spacing: .06em; margin: 0 0 6px 2px; }
 
-/* --- NATAL (v48) — liga sozinho de 15/11 a 06/01 --- */
+/* --- NATAL (v48) — liga sozinho de 01/11 a 06/01 --- */
 .natal header .titulo { position: relative; }
 .natal header .titulo::before {
   content: ''; position: absolute; left: -9px; top: -11px; width: 22px; height: 18px;
@@ -530,7 +530,7 @@ nav button { position: relative; }
     <div class="carta">
       <button class="botao vazio" style="margin-top:0" onclick="forcarAtualizacao()">BUSCAR VERSÃO NOVA</button>
       <div class="nota" style="text-align:center;margin-top:14px;opacity:.7">
-        versão <span id="cfg-versao">v48</span></div>
+        versão <span id="cfg-versao">v48.1</span></div>
     </div>
   </section>
 
@@ -2212,11 +2212,11 @@ async function ignorarPergunta(i) {
 }
 
 // ===========================================================================
-// NATAL (v48) — enfeite que liga sozinho de 15/11 a 06/01 e some depois
+// NATAL (v48) — enfeite que liga sozinho de 01/11 a 06/01 e some depois
 // ===========================================================================
 (function () {
   var h = new Date(), m = h.getMonth() + 1, d = h.getDate();
-  var ligado = (m === 11 && d >= 15) || m === 12 || (m === 1 && d <= 6);
+  var ligado = m === 11 || m === 12 || (m === 1 && d <= 6);
   if (localStorage.getItem('app_natal') === 'sim') ligado = true;   // para testar antes
   if (!ligado) return;
   document.body.classList.add('natal');
