@@ -133,6 +133,52 @@ nav button.on { color: var(--dourado); }
 }
 .carta.toque { width: 100%; text-align: left; color: inherit; display: block; }
 
+/* ENVIO EM SEGUNDO PLANO (v50): o cartão que está indo fica escurecido com a
+   bolinha girando; quando o motor confirma, ele some. Se der erro, fica com
+   a borda vermelha e o recado. */
+.carta, .pagina { position: relative; }
+.carta.enviando::after, .pagina.enviando::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit;
+  background: rgba(0,0,0,.62); z-index: 3;
+}
+.carta.enviando::before, .pagina.enviando::before {
+  content: ''; position: absolute; z-index: 4; width: 30px; height: 30px;
+  left: calc(50% - 15px); top: calc(50% - 15px);
+  border: 3px solid rgba(201,164,106,.25); border-top-color: var(--dourado-forte);
+  border-radius: 50%; animation: girar .8s linear infinite;
+}
+.pagina.enviando::before { position: fixed; top: 45%; }
+.carta.enviando, .pagina.enviando { pointer-events: none; }
+.carta.falhou { border-color: #B5483A; }
+.etiqueta.falhou { background: #B5483A; color: #fff; }
+.carta.feito { display: none; }
+@keyframes girar { to { transform: rotate(360deg); } }
+
+/* o recadinho de "enviado para o motor" */
+#toast {
+  position: fixed; left: 50%; bottom: calc(86px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%) translateY(20px); opacity: 0; z-index: 60;
+  background: #1F1A14; border: 1px solid var(--dourado); color: var(--texto);
+  padding: 10px 16px; border-radius: 99px; font-size: 14px; white-space: nowrap;
+  transition: opacity .25s, transform .25s; pointer-events: none;
+}
+#toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* puxar para atualizar (v50) */
+#puxar {
+  position: fixed; left: 50%; z-index: 19; width: 38px; height: 38px; margin-left: -19px;
+  top: calc(62px + env(safe-area-inset-top, 0px)); border-radius: 50%;
+  background: #1F1A14; border: 1px solid var(--linha);
+  display: flex; align-items: center; justify-content: center;
+  transform: translateY(-50px); opacity: 0; pointer-events: none;
+}
+#puxar span {
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 2px solid rgba(201,164,106,.25); border-top-color: var(--dourado-forte);
+}
+#puxar.pronto span { border-color: var(--dourado-forte); border-top-color: transparent; }
+#puxar.rodando span { animation: girar .8s linear infinite; }
+
 .pedido { display: flex; gap: 13px; align-items: flex-start; }
 .pedido .selo {
   width: 42px; height: 42px; border-radius: 12px; flex: 0 0 42px;
@@ -488,9 +534,11 @@ nav button { position: relative; }
   <div class="titulo" id="titulo">DESPACHO</div>
   <div class="dir">
     <span class="conta" id="conta"></span>
-    <button class="atualizar" onclick="recarregar()">atualizar</button>
   </div>
 </header>
+
+<div id="puxar"><span></span></div>
+<div id="toast"></div>
 
 <div class="telas" id="telas">
 
@@ -540,7 +588,7 @@ nav button { position: relative; }
     <div class="carta">
       <button class="botao vazio" style="margin-top:0" onclick="forcarAtualizacao()">BUSCAR VERSÃO NOVA</button>
       <div class="nota" style="text-align:center;margin-top:14px;opacity:.7">
-        versão <span id="cfg-versao">v49</span></div>
+        versão <span id="cfg-versao">v50</span></div>
     </div>
   </section>
 
@@ -639,6 +687,7 @@ var CORES = { SINIL:'#6F8FAE', AZURELOG:'#8B7AB5', ITOUPAVA:'#6FA58A',
   TRANSOLIVEIRA:'#C88A5A', ARLETE:'#B5646E', TW:'#5FA6A0', RODONAVES:'#C9A46A' };
 
 function $(id){ return document.getElementById(id); }
+var ENVIANDO = {};   // os envios em segundo plano (v50)
 
 /**
  * O REGISTRO DE EVENTOS
@@ -722,10 +771,14 @@ function marcarAba(i) {
   if (i === 2 && !FAT) carregarFaturamento();
   if (i === 3 && !PERG) carregarPerguntas();
   if (i === 0 && !PEDIDOS.length) carregarPedidos();
+  if (i === 0) limparFeitos();
 }
 function atualizarConta(i) {
-  if (i === 0) $('conta').textContent = PEDIDOS.length ? PEDIDOS.length + (PEDIDOS.length===1?' pedido':' pedidos') : '';
-  else if (i === 1) $('conta').textContent = PEDIDOS.length ? (atual + 1) + ' de ' + PEDIDOS.length : '';
+  var vivos = PEDIDOS.filter(function(p){ return !p._feito; }).length;
+  var indo = Object.keys(ENVIANDO).filter(function(k){ return !ENVIANDO[k].erro; }).length;
+  var sufixo = indo ? ' · ' + indo + ' enviando…' : '';
+  if (i === 0) $('conta').textContent = (vivos ? vivos + (vivos===1?' pedido':' pedidos') : '') + sufixo;
+  else if (i === 1) $('conta').textContent = (vivos ? (atual + 1) + ' de ' + PEDIDOS.length : '') + sufixo;
   else if (i === 3) $('conta').textContent = PERG && PERG.length ? PERG.length + (PERG.length===1?' pergunta':' perguntas') : '';
   else $('conta').textContent = '';
 }
@@ -794,6 +847,58 @@ function recarregar() {
 }
 
 // ===========================================================================
+// PUXAR PARA ATUALIZAR (v50) — substitui o botão "atualizar"
+// ===========================================================================
+(function () {
+  var ind = $('puxar'), y0 = null, x0 = 0, dy = 0, ativo = false, LIMITE = 70;
+  function rolavelNoTopo(el) {
+    while (el && el !== document.body) {
+      var s = getComputedStyle(el);
+      if ((s.overflowY === 'auto' || s.overflowY === 'scroll') && el.scrollHeight > el.clientHeight + 2) {
+        return el.scrollTop <= 0;
+      }
+      el = el.parentElement;
+    }
+    return true;
+  }
+  telas.addEventListener('touchstart', function (ev) {
+    var cam = $('camada'); if (cam && cam.classList.contains('on')) { y0 = null; return; }
+    if (!rolavelNoTopo(ev.target)) { y0 = null; return; }
+    y0 = ev.touches[0].clientY; x0 = ev.touches[0].clientX; dy = 0; ativo = false;
+  }, { passive: true });
+  telas.addEventListener('touchmove', function (ev) {
+    if (y0 === null) return;
+    var ddy = ev.touches[0].clientY - y0, ddx = ev.touches[0].clientX - x0;
+    if (!ativo) {
+      if (Math.abs(ddx) > Math.abs(ddy) || ddy < 8) { if (Math.abs(ddx) > 10 || ddy < -5) y0 = null; return; }
+      ativo = true;
+    }
+    dy = Math.max(0, ddy);
+    var d = Math.min(dy * 0.5, 90);
+    ind.style.transition = 'none';
+    ind.style.opacity = Math.min(1, d / 40);
+    ind.style.transform = 'translateY(' + (d - 40) + 'px) rotate(' + (dy * 2) + 'deg)';
+    ind.classList.toggle('pronto', dy * 0.5 >= LIMITE);
+  }, { passive: true });
+  telas.addEventListener('touchend', function () {
+    if (y0 === null || !ativo) { y0 = null; return; }
+    y0 = null;
+    ind.style.transition = 'transform .25s, opacity .25s';
+    if (dy * 0.5 >= LIMITE) {
+      ind.classList.remove('pronto'); ind.classList.add('rodando');
+      ind.style.transform = 'translateY(14px)'; ind.style.opacity = 1;
+      recarregar();
+      setTimeout(function () {
+        ind.classList.remove('rodando');
+        ind.style.transform = 'translateY(-50px)'; ind.style.opacity = 0;
+      }, 1300);
+    } else {
+      ind.style.transform = 'translateY(-50px)'; ind.style.opacity = 0;
+    }
+  });
+})();
+
+// ===========================================================================
 // PEDIDOS — a lista
 // ===========================================================================
 var carregandoPedidos = false;
@@ -818,6 +923,11 @@ async function carregarPedidos(forcar) {
     // da lista tenha mudado (pedido novo entrando em cima)
     var idAtual = idDe(PEDIDOS[atual]);
     PEDIDOS = novos;
+    // o que confirmou enquanto você estava fora já não vem; o que ainda está
+    // indo continua com a máscara
+    Object.keys(ENVIANDO).forEach(function(k){
+      if (!PEDIDOS.some(function(x){ return idDe(x) === k; }) && ENVIANDO[k].erro) delete ENVIANDO[k];
+    });
     var novoIndice = PEDIDOS.map(idDe).indexOf(idAtual);
     if (novoIndice >= 0) atual = novoIndice;
     if (atual >= PEDIDOS.length) atual = Math.max(0, PEDIDOS.length - 1);
@@ -865,7 +975,9 @@ function montarLista() {
      */
     var tempo = p.dias >= 2 ? 'há ' + p.dias + ' dias' : (p.dias === 1 ? 'ontem' : 'hoje');
     if (p.quando) tempo += '<br><span class="quando">' + esc(p.quando) + '</span>';
-    return '<button class="carta toque" id="carta-' + esc(idDe(p)) + '" onclick="abrirPedido('+i+')">'+
+    var st = ENVIANDO[idDe(p)];
+    var cls = p._feito ? ' feito' : (st ? (st.erro ? ' falhou' : ' enviando') : '');
+    return '<button class="carta toque' + cls + '" id="carta-' + esc(idDe(p)) + '" onclick="abrirPedido('+i+')">'+
       '<div class="pedido">'+
         '<div class="selo">'+esc(iniciais(p.cliente))+'</div>'+
         '<div class="meio">'+
@@ -896,6 +1008,7 @@ function montarLista() {
            *   Bling — se o pedido ainda não chegou lá, o Everton não consegue
            *   faturar. O selo avisa antes.
            */
+          (st && st.erro ? '<span class="etiqueta falhou">não foi enviado · toque para ver</span>' : '')+
           (p.aviso ? '<span class="etiqueta giro-espera">' + esc(p.aviso) + '</span>' : '')+
           seloGiro_(p)+
           (cotacoesProntas[idDe(p)] ? '<span class="etiqueta">cotado</span>' : '')+
@@ -932,6 +1045,12 @@ function seloGiro_(p) {
 
 /** Toca num pedido: vai para a aba de cotação, na tela dele. */
 function abrirPedido(i) {
+  var stE = ENVIANDO[idDe(PEDIDOS[i])];
+  if (stE && stE.erro) {
+    avisar('Este pedido NÃO foi enviado.\n\n' + stE.erro + '\n\nConfira e toque em enviar de novo.');
+    delete ENVIANDO[idDe(PEDIDOS[i])];
+    montarLista(); pintarEnvios();
+  }
   atual = i;
   registrar('abriu pedido ' + idDe(PEDIDOS[i]) + ' (índice ' + i + ')');
   irPara(1);
@@ -1021,6 +1140,7 @@ function montarTrilho() {
     return '<div class="pagina" id="pagina-' + esc(idDe(p)) + '" data-i="' + i + '"></div>';
   }).join('');
   PEDIDOS.forEach(function(p, i){ desenharPagina(i); });
+  pintarEnvios();
 }
 
 /** O trilho parou numa tela: ela vira a atual e cota se ainda não cotou. */
@@ -1707,25 +1827,137 @@ function tocarBotaoCamada() {
   fecharCamada();
 }
 
+/**
+ * ENVIO EM SEGUNDO PLANO (v50 — 11/11/2026)
+ *
+ *   Antes o app ficava parado na camada até o motor terminar tudo (planilha,
+ *   e-mail, mensagem). Agora o pedido é mandado para o motor na hora e o app
+ *   já passa para o próximo. O cartão fica escurecido com a bolinha até a
+ *   resposta, e some quando o motor confirma.
+ *
+ *   Pode sair do app: depois que o pedido CHEGA no motor (menos de 1 segundo),
+ *   ele termina sozinho. O motor tem uma trava e grava um por vez, na ordem
+ *   em que chegaram — dois envios juntos nunca disputam a mesma linha.
+ *
+ *   Se a resposta vier com erro, o app confere na lista se o romaneio saiu
+ *   assim mesmo (como antes), para nunca mandar duas vezes. Se não saiu, o
+ *   cartão fica com a marca vermelha; tocando, o erro aparece.
+ */
+// ENVIANDO (id -> { erro: null | 'motivo' }) é declarado lá em cima, junto do $()
+
+function mostrarToast(texto) {
+  var t = $('toast'); if (!t) return;
+  t.textContent = texto; t.classList.add('on');
+  clearTimeout(t._tm); t._tm = setTimeout(function(){ t.classList.remove('on'); }, 2200);
+}
+
+function pintarEnvios() {
+  PEDIDOS.forEach(function(p){
+    var id = idDe(p), st = ENVIANDO[id];
+    var carta = $('carta-'+id), pag = $('pagina-'+id);
+    if (carta) {
+      carta.classList.toggle('enviando', !!st && !st.erro);
+      carta.classList.toggle('falhou', !!st && !!st.erro);
+      carta.classList.toggle('feito', !!p._feito);
+    }
+    if (pag) pag.classList.toggle('enviando', !!st && !st.erro);
+  });
+  atualizarConta(abaAtual());
+}
+
+/** Vai para o próximo pedido que ainda espera, sem esperar o envio. */
+function proximoPedido(i) {
+  var livre = function(j){ var q = PEDIDOS[j]; return q && !q._feito && !ENVIANDO[idDe(q)]; };
+  var j = -1, k;
+  for (k = i + 1; k < PEDIDOS.length; k++) if (livre(k)) { j = k; break; }
+  if (j < 0) for (k = i - 1; k >= 0; k--) if (livre(k)) { j = k; break; }
+  if (j < 0) { irPara(0); return; }
+  atual = j;
+  var t = $('trilho');
+  t.scrollTo({ left: t.clientWidth * j, behavior: 'smooth' });
+  var cp = $('carta-'+idDe(PEDIDOS[j])); if (cp) cp.classList.add('agora');
+  garantirCotacao(j);
+  carregarChat(j, false);
+  atualizarConta(abaAtual());
+}
+
 async function enviar(i) {
   var p = PEDIDOS[i]; if (!p) return;
   var id = idDe(p), e = escolhas[id];
+  if (!e) return;
+  if (ENVIANDO[id] && !ENVIANDO[id].erro) return;   // já está indo
   var textoEscopo = ($('escopo-'+id) || {}).value || '';
+  var rastreio = (($('rastreio-'+id) || {}).value || '').trim();
 
-  abrirCamada();
-  registrar('enviando ' + id + ' por ' + e.t);
+  ENVIANDO[id] = { erro: null };
+  pintarEnvios();
+  registrar('enviando ' + id + ' por ' + e.t + ' (segundo plano)');
+
+  var promessa = pedir('enviar', { loja: p.loja, pedido: id, transp: e.t, frete: e.v,
+                                   cotacao: e.cotacao || '', escopo: textoEscopo,
+                                   rastreio: rastreio });
+  setTimeout(function(){ mostrarToast('✓ enviado ao motor — pode seguir'); }, 1200);
+  proximoPedido(i);
+
   var resultado = null;
-  try {
-    var rastreio = (($('rastreio-'+id) || {}).value || '').trim();
-    resultado = await pedir('enviar', { loja: p.loja, pedido: id, transp: e.t, frete: e.v,
-                                        cotacao: e.cotacao || '', escopo: textoEscopo,
-                                        rastreio: rastreio });
-  } catch (err) {
-    resultado = { email:false, planilha:false, avisos:['Falhou: ' + err.message], caiu: true };
-  }
+  try { resultado = await promessa; }
+  catch (err) { resultado = { email:false, planilha:false, avisos:['Falhou: ' + err.message], caiu: true }; }
 
-  if (resultado && (resultado.planilha || resultado.email)) { deuCerto(i, resultado); return; }
-  conferir(i, resultado);
+  if (resultado && (resultado.planilha || resultado.email)) { concluirEnvio(id, resultado); return; }
+
+  // deu erro: confere se o romaneio saiu assim mesmo, antes de acusar
+  var saiu = false, motivo = (resultado && resultado.avisos || []).join('\n');
+  try {
+    var d = await pedir('pedidos', { forcar: 1 });
+    saiu = !(d.pedidos || []).some(function(x){ return idDe(x) === id; });
+  } catch (err) {
+    motivo += '\nE a conferência também falhou: ' + err.message;
+  }
+  if (saiu) { concluirEnvio(id, { avisos: ['A chamada deu erro, mas o romaneio tinha saído.'] }); return; }
+
+  ENVIANDO[id] = { erro: motivo || 'o motor não confirmou a gravação' };
+  registrar('envio de ' + id + ' NÃO saiu: ' + ENVIANDO[id].erro);
+  if (abaAtual() === 0) montarLista();
+  pintarEnvios();
+  var pg = PEDIDOS.map(idDe).indexOf(id);
+  if (pg >= 0) desenharPagina(pg);
+  mostrarToast('✗ um envio não saiu — veja o cartão vermelho');
+}
+
+/** O motor confirmou: o cartão some; a lista se arruma quando você voltar a ela. */
+function concluirEnvio(id, resultado) {
+  delete ENVIANDO[id];
+  registrar('envio de ' + id + ' confirmado' + (resultado && resultado.tempos ? ' — ' + resultado.tempos : ''));
+  var p = PEDIDOS.filter(function(x){ return idDe(x) === id; })[0];
+  if (p) p._feito = true;
+  delete cotacoesProntas[id]; delete escolhas[id];
+  guardarEstado();
+  var carta = $('carta-'+id); if (carta) carta.classList.add('foi');
+  var pag = $('pagina-'+id);
+  if (pag) {
+    pag.classList.remove('enviando');
+    pag.innerHTML = '<div class="vazio">✓ Romaneio enviado.<br>Deslize para o próximo.</div>';
+  }
+  setTimeout(function(){ pintarEnvios(); if (abaAtual() === 0) limparFeitos(); }, 560);
+}
+
+/**
+ * TIRA DA LISTA OS JÁ ENVIADOS
+ *   Só quando nada está indo e você está na lista: refazer o trilho no meio
+ *   de uma cotação apagaria o que você está escrevendo no escopo.
+ */
+function limparFeitos() {
+  if (!PEDIDOS.some(function(p){ return p._feito; })) return;
+  var indo = Object.keys(ENVIANDO).some(function(k){ return !ENVIANDO[k].erro; });
+  if (indo) return;
+  var idAtual = idDe(PEDIDOS[atual]);
+  PEDIDOS = PEDIDOS.filter(function(p){ return !p._feito; });
+  var n = PEDIDOS.map(idDe).indexOf(idAtual);
+  atual = n >= 0 ? n : Math.max(0, Math.min(atual, PEDIDOS.length - 1));
+  guardarEstado();
+  montarLista(); montarTrilho();
+  var t = $('trilho'); if (t) t.scrollTo({ left: t.clientWidth * atual, behavior: 'auto' });
+  atualizarConta(abaAtual());
 }
 
 /**
