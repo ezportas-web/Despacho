@@ -287,6 +287,16 @@ textarea { min-height: 260px; font-size: 13px; line-height: 1.5;
   letter-spacing:-.3px}
 .semana div.fds{color:#6B5327}
 
+/* a caixinha do dia (v49) */
+.colunas div{cursor:pointer}
+.colunas .linha-meta{pointer-events:none}
+#dia-fundo{position:fixed;inset:0;z-index:999;background:rgba(0,0,0,.6);display:none;
+  align-items:center;justify-content:center;padding:20px}
+.dia-caixa{background:var(--carta,#1c1814);border:1px solid rgba(201,162,92,.35);border-radius:18px;
+  padding:20px;width:100%;max-width:380px;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+.dia-caixa .linha-mes small{font-size:12px}
+.dia-caixa button{padding:12px;border-radius:12px;border:1px solid var(--linha);background:var(--carta-alta);color:var(--texto-2);font:inherit;font-size:15px;cursor:pointer}
+
 /* a barra da meta do mês */
 .meta-barra{position:relative;height:26px;border-radius:13px;overflow:hidden;
   margin-top:14px;background:#1a1613;border:1px solid var(--linha)}
@@ -530,7 +540,7 @@ nav button { position: relative; }
     <div class="carta">
       <button class="botao vazio" style="margin-top:0" onclick="forcarAtualizacao()">BUSCAR VERSÃO NOVA</button>
       <div class="nota" style="text-align:center;margin-top:14px;opacity:.7">
-        versão <span id="cfg-versao">v48.1</span></div>
+        versão <span id="cfg-versao">v49</span></div>
     </div>
   </section>
 
@@ -1866,6 +1876,60 @@ async function carregarFaturamento() {
  *   da loja — aqui sai à parte, que é como o Jonas acompanha. Fácil ML
  *   mais Fácil MM tem de dar o número da planilha.
  */
+/**
+ * A CAIXINHA DO DIA (v49)
+ *   Tocar numa barrinha abre o resumo daquele dia: valor, portas e pedidos
+ *   por loja (Fácil ML, Fácil MM, Domo) e o total. Os números de loja vêm da
+ *   aba PEDIDOS — a mesma conta do "Portas e pedidos do mês", só que por dia.
+ *   A PEDIDOS só tem o que já foi FATURADO, então hoje e ontem podem estar
+ *   incompletos; o valor da barrinha aparece em cima para comparar.
+ */
+function abrirDia(dia, valorBarra) {
+  var u = (FAT && FAT.unidades) || {};
+  var d = (u.dias || {})[dia] || {};
+  var nomes = { facil: 'Fácil ML', mm: 'Fácil MM', domo: 'Domo Wood', outros: 'Outros' };
+  var semana = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+  var agora = new Date();
+  var data = new Date(agora.getFullYear(), agora.getMonth(), dia);
+
+  function linha(rot, c, forte) {
+    c = c || { pedidos: 0, portas: 0, valor: 0 };
+    return '<div class="linha-mes"' + (forte ? ' style="font-weight:600"' :
+      (c.pedidos ? '' : ' style="color:var(--texto-3)"')) + '>' +
+      '<span>' + rot + '<br><small style="color:var(--texto-2)">' + c.portas +
+      (c.portas === 1 ? ' porta' : ' portas') + ' \u00b7 ' + c.pedidos +
+      (c.pedidos === 1 ? ' pedido' : ' pedidos') + '</small></span>' +
+      '<span>' + brl(c.valor) + '</span></div>';
+  }
+
+  var h = '<div class="dia-caixa" onclick="event.stopPropagation()">' +
+    '<span class="rotulo">' + semana[data.getDay()] + ', ' +
+      String(dia).padStart(2, '0') + '/' + String(data.getMonth() + 1).padStart(2, '0') + '</span>' +
+    '<div class="numero" style="font-size:30px">' + brl(valorBarra) + '</div>' +
+    '<div class="nota" style="margin-bottom:6px">valor da barrinha</div>' +
+    linha(nomes.facil, d.facil) + linha(nomes.mm, d.mm) + linha(nomes.domo, d.domo) +
+    (d.outros && d.outros.pedidos ? linha(nomes.outros, d.outros) : '') +
+    linha('Total', d.total, true) +
+    (d.total ? '' : '<div class="nota">nenhum pedido faturado deste dia na PEDIDOS ainda</div>') +
+    '<button class="atualizar" style="margin-top:14px;width:100%" onclick="fecharDia()">fechar</button>' +
+    '</div>';
+
+  var f = document.getElementById('dia-fundo');
+  if (!f) {
+    f = document.createElement('div');
+    f.id = 'dia-fundo';
+    f.onclick = fecharDia;
+    document.body.appendChild(f);
+  }
+  f.innerHTML = h;
+  f.style.display = 'flex';
+}
+
+function fecharDia() {
+  var f = document.getElementById('dia-fundo');
+  if (f) f.style.display = 'none';
+}
+
 function cartaoUnidades_(u) {
   if (!u || !u.total) return '';
   if (!u.total.pedidos && !u.total.portas) return '';
@@ -2046,7 +2110,7 @@ function montarFaturamento() {
   var colunas = f.serie.map(function(x){
     var alt = Math.round((x.valor / topo) * 100);
     var classe = x.dia===hoje ? 'hoje' : (x.valor < topo*0.2 ? 'fraco' : '');
-    return '<div class="'+classe+'" style="height:'+Math.max(2,alt)+'%" title="dia '+x.dia+': '+brl(x.valor)+'"></div>';
+    return '<div class="'+classe+'" style="height:'+Math.max(2,alt)+'%" title="dia '+x.dia+': '+brl(x.valor)+'" onclick="abrirDia('+x.dia+','+x.valor+')"></div>';
   }).join('');
 
   // a linha pontilhada, posicionada pela altura que o valor ocupa
