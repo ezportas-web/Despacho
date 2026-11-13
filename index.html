@@ -2851,6 +2851,7 @@ async function baixarNotas() {
   try {
     var d = await pedir('notasBaixar');
     var h = '<div class="nota">' + esc(d.msg || ((d.baixadas || 0) + ' notas salvas')) + '</div><div class="links-nf">';
+    if (d.todasUrl) h += '<a href="' + esc(d.todasUrl) + '" target="_blank" style="font-weight:700">Abrir TODAS AS NOTAS (PDF único para imprimir)</a>';
     if (d.pastaUrl) h += '<a href="' + esc(d.pastaUrl) + '" target="_blank">Abrir a pasta do dia</a>';
     if (d.planilhaUrl) h += '<a href="' + esc(d.planilhaUrl) + '" target="_blank">Abrir a planilha da logística</a>';
     if (d.embalagemUrl) h += '<a href="' + esc(d.embalagemUrl) + '" target="_blank">Abrir a lista de embalagem (PDF)</a>';
