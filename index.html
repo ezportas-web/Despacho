@@ -762,7 +762,7 @@ function restaurarEstado() {
     var g = JSON.parse(localStorage.getItem('app_estado') || 'null');
     if (!g || !g.pedidos || !g.pedidos.length) return false;
     var idade = (Date.now() - (g.quando || 0)) / 60000;
-    PEDIDOS = g.pedidos;
+    PEDIDOS = g.pedidos.filter(function(x){ return !jaDespachado(idDe(x)) && !x._feito; });
     /**
      * A COTAÇÃO NÃO ENVELHECE AQUI
      *   Eu descartava cotação com mais de uma hora, e às 19:14 de 27/09 isso
@@ -772,7 +772,8 @@ function restaurarEstado() {
     cotacoesProntas = g.cotacoes || {};
     limparCotacoesVazias_();
     escolhas = g.escolhas || {};
-    atual = Math.min(g.atual || 0, PEDIDOS.length - 1);
+    if (!PEDIDOS.length) return false;
+    atual = Math.max(0, Math.min(g.atual || 0, PEDIDOS.length - 1));
     registrar('estado restaurado: ' + PEDIDOS.length + ' pedido(s), ' +
               Object.keys(cotacoesProntas).length + ' cotação(ões), de ' + Math.round(idade) + ' min atrás');
     return true;
@@ -804,6 +805,20 @@ var CORES = { SINIL:'#6F8FAE', AZURELOG:'#8B7AB5', ITOUPAVA:'#6FA58A',
 
 function $(id){ return document.getElementById(id); }
 var ENVIANDO = {};   // os envios em segundo plano (v50)
+/**
+ * OS JÁ DESPACHADOS NÃO VOLTAM (v57 — 13/11/2026)
+ *   O motor guarda a lista por alguns minutos; ao atualizar logo depois de
+ *   mandar, o pedido despachado voltava à tela e dava para mandar de novo.
+ *   O app lembra por 30 minutos o que já foi confirmado e não mostra mais.
+ */
+var DESPACHADOS = {};
+try { DESPACHADOS = JSON.parse(localStorage.getItem('app_despachados') || '{}'); } catch (e) {}
+function lembrarDespachado(id) {
+  DESPACHADOS[id] = Date.now();
+  Object.keys(DESPACHADOS).forEach(function(k){ if (Date.now() - DESPACHADOS[k] > 30*60000) delete DESPACHADOS[k]; });
+  try { localStorage.setItem('app_despachados', JSON.stringify(DESPACHADOS)); } catch (e) {}
+}
+function jaDespachado(id) { return DESPACHADOS[id] && (Date.now() - DESPACHADOS[id]) < 30*60000; }
 
 /**
  * O REGISTRO DE EVENTOS
@@ -1035,7 +1050,7 @@ async function carregarPedidos(forcar) {
   $('lista').innerHTML = '<div class="carregando">Buscando pedidos…</div>';
   try {
     var d = await pedir('pedidos', { forcar: forcar ? 1 : 0 });
-    var novos = d.pedidos || [];
+    var novos = (d.pedidos || []).filter(function(x){ return !jaDespachado(idDe(x)); });
 
     // o pedido que estava na frente continua na frente, mesmo que a ordem
     // da lista tenha mudado (pedido novo entrando em cima)
@@ -2092,6 +2107,7 @@ async function enviar(i) {
 /** O motor confirmou: o cartão some; a lista se arruma quando você voltar a ela. */
 function concluirEnvio(id, resultado) {
   delete ENVIANDO[id];
+  lembrarDespachado(id);
   registrar('envio de ' + id + ' confirmado' + (resultado && resultado.tempos ? ' — ' + resultado.tempos : ''));
   var p = PEDIDOS.filter(function(x){ return idDe(x) === id; })[0];
   if (p) p._feito = true;
@@ -2781,6 +2797,7 @@ function tagIA(r) {
 
 function montarIA() {
   var d = NFS || {}, ia = d.ia || {}, a = ia.andamento, rev = d.revisao || [];
+  if (a && a.rodando && a.batida && (Date.now() - a.batida) > 8 * 60000) a.rodando = false; // travou: libera o botão
   var b = $('btn-ia');
   b.disabled = !!d.rodando || !!d.enviando || (a && a.rodando) || !rev.length || ia.temChave === false;
   b.textContent = (a && a.rodando) ? '🤖 CONFERINDO… ' + (a.feitas||0) + '/' + (a.total||0) : '🤖 CONFERIR POR IA';
@@ -2837,7 +2854,8 @@ function montarNotas() {
   // 2 · em revisão
   $('nf-n-revisao').textContent = rev.length;
   $('nf-lista-revisao').innerHTML = rev.length ? rev.map(function(x){ return cartaoNf(x, 'gerada', 'PRONTA PARA CONFERIR'); }).join('') : '<div class="vazio">Nenhuma nota esperando conferência.</div>';
-  $('btn-sefaz').disabled = !!d.rodando || !!d.enviando || !rev.length;
+  var iaRodando = !!(d.ia && d.ia.andamento && d.ia.andamento.rodando && (Date.now() - (d.ia.andamento.batida || 0)) < 8 * 60000);
+  $('btn-sefaz').disabled = !!d.rodando || !!d.enviando || iaRodando || !rev.length;
   $('btn-sefaz').textContent = d.enviando ? 'TRANSMITINDO…' : (rev.length ? 'TRANSMITIR ' + rev.length + (rev.length===1?' NOTA':' NOTAS') + ' À SEFAZ' : 'TRANSMITIR À SEFAZ');
 
   // problemas
