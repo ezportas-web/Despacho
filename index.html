@@ -492,6 +492,14 @@ nav button { position: relative; }
 .passo.revisao { border-color: #6B5A2E; background: rgba(201,169,97,.08); }
 .passo.revisao .numero { font-size: 56px; color: var(--dourado); }
 .passo.enviadas .numero { color: var(--verde); }
+.botao.ia { background: none; border: 1px solid #5B6B9A; color: #AFC0F0; margin-top: 8px; }
+.ia-resumo { margin-top: 10px; font-size: 13px; color: var(--texto-2); text-align: center; }
+.ia-resumo b { color: var(--texto); }
+.ia-tag { margin-top: 8px; padding: 8px 10px; border-radius: 10px; font-size: 13px; line-height: 1.4; }
+.ia-tag.ok { background: rgba(80,160,100,.12); color: var(--verde); }
+.ia-tag.corrigida { background: rgba(110,140,230,.12); color: #AFC0F0; }
+.ia-tag.duvida { background: rgba(201,169,97,.14); color: var(--dourado); }
+.ia-tag.erro { background: rgba(200,80,80,.12); color: var(--vermelho); }
 .botao.sefaz { background: linear-gradient(145deg, #C9A961, #A8873F); color: #14110A; font-size: 17px; padding: 18px; }
 .sessao-nf { margin-top: 14px; padding: 12px 14px; border-radius: 14px; border: 1px dashed var(--linha);
   font-size: 14px; color: var(--texto); line-height: 1.5; }
@@ -617,6 +625,8 @@ nav button { position: relative; }
       <div class="numero" id="nf-n-emitir">–</div>
       <div class="sub" id="nf-sub-emitir">pedidos com romaneio esperando nota</div>
       <button class="botao verde" id="btn-emitir" onclick="emitirNotas()">EMITIR NOTAS</button>
+      <button class="botao ia" id="btn-ia" onclick="conferirIA()">🤖 CONFERIR POR IA</button>
+      <div class="ia-resumo" id="nf-ia"></div>
       <details class="lista-nf" id="nf-lista-emitir-box"><summary>ver os pedidos</summary><div id="nf-lista-emitir"></div></details>
     </div>
 
@@ -2736,7 +2746,7 @@ async function carregarNotas(quieto) {
     montarNotas();
     if (abaAtual() === 4) atualizarConta(4);
     clearTimeout(nfTimer);
-    if (d.rodando || d.enviando) nfTimer = setTimeout(function(){ carregarNotas(true); }, 15000);
+    if (d.rodando || d.enviando || (d.ia && d.ia.andamento && d.ia.andamento.rodando)) nfTimer = setTimeout(function(){ carregarNotas(true); }, 15000);
   } catch (e) {
     if (!quieto) $('nf-estado').innerHTML = '<div class="aviso">Não consegui buscar as notas: ' + esc(e.message) +
       (/não conheço api/.test(e.message) ? '<br><br>O motor ainda não tem esta versão da aba — falta reimplantar o Apps Script.' : '') + '</div>';
@@ -2753,9 +2763,53 @@ function cartaoNf(x, classe, statusTxt) {
     '<span class="status">' + esc(statusTxt) + (x.nfNumero ? ' · NF ' + esc(x.nfNumero) : '') + '</span>' +
     ((x.divergencias && x.divergencias.length) ? '<div class="diverge">' + x.divergencias.map(esc).join('<br>') + '</div>' : '') +
     (x.envioMsg ? '<div class="diverge">' + esc(x.envioMsg) + '</div>' : '') +
+    tagIA(x.ia) +
     (x.msg && classe !== 'gerada' && classe !== 'enviada' ? '<div class="nota">' + esc(x.msg) + '</div>' : '') +
     (x.linkBling ? '<a class="bling" href="' + esc(x.linkBling) + '" target="_blank">abrir a nota no Bling ›</a>' : '') +
   '</div>';
+}
+
+function tagIA(r) {
+  if (!r) return '';
+  var t = { ok: '🤖 IA: tudo certo', corrigida: '🤖 IA corrigiu', duvida: '🤖 IA tem dúvida', erro: '🤖 IA não conseguiu conferir' }[r.status] || '🤖 IA';
+  var h = '<b>' + t + '</b>';
+  (r.correcoes || []).forEach(function(c){ h += '<br>• ' + esc(c); });
+  (r.duvidas || []).forEach(function(c){ h += '<br>⚠ ' + esc(c); });
+  if (r.status === 'erro' && r.resumo) h += '<br>' + esc(r.resumo);
+  return '<div class="ia-tag ' + esc(r.status) + '">' + h + '</div>';
+}
+
+function montarIA() {
+  var d = NFS || {}, ia = d.ia || {}, a = ia.andamento, rev = d.revisao || [];
+  var b = $('btn-ia');
+  b.disabled = !!d.rodando || !!d.enviando || (a && a.rodando) || !rev.length || ia.temChave === false;
+  b.textContent = (a && a.rodando) ? '🤖 CONFERINDO… ' + (a.feitas||0) + '/' + (a.total||0) : '🤖 CONFERIR POR IA';
+  var h = '';
+  if (ia.temChave === false) h = 'Falta a chave da IA no motor.';
+  else if (a && a.feitas) {
+    h = (a.rodando ? 'Conferindo: ' : 'Última conferência (' + esc(horaCurta(a.inicio)) + '): ') +
+      '<b>' + a.feitas + '</b> conferidas · ' + (a.ok||0) + ' ok · <b>' + (a.corrigidas||0) + '</b> corrigidas · ' +
+      '<b style="color:' + (a.duvidas ? 'var(--dourado)' : 'inherit') + '">' + (a.duvidas||0) + '</b> com dúvida' +
+      (a.erros ? ' · <b style="color:var(--vermelho)">' + a.erros + '</b> com erro' : '');
+    if (a.duvidas && !a.rodando) h += '<br>As dúvidas aparecem em amarelo nas notas em revisão.';
+  }
+  if (ia.usoHoje) h += (h ? '<br>' : '') + '<span style="opacity:.7">Uso hoje: ' + ia.usoHoje.notas + ' conferências · ' +
+    Math.round((ia.usoHoje.entrada + ia.usoHoje.saida) / 1000) + ' mil tokens</span>';
+  $('nf-ia').innerHTML = h;
+}
+
+async function conferirIA() {
+  var n = (NFS && NFS.revisao || []).length;
+  if (!confirm('Conferir ' + n + (n===1?' nota':' notas') + ' em revisão com a IA?\n\nEla corrige no Bling nome, CPF, telefone e endereço quando estiverem errados. O resto, só avisa.')) return;
+  var b = $('btn-ia'); b.disabled = true; b.textContent = '🤖 CONFERINDO…';
+  try {
+    var d = await pedir('notasConferirIA');
+    registrar('notas: conferência IA — ' + (d.msg || 'ok'));
+    mostrarToast(d.msg || 'Conferência iniciada');
+  } catch (e) {
+    mostrarToast('Não foi: ' + e.message);
+  }
+  setTimeout(function(){ carregarNotas(true); }, 5000);
 }
 
 function montarNotas() {
@@ -2778,6 +2832,7 @@ function montarNotas() {
     ? emitir.map(function(x){ return '<div class="meta" style="margin-top:6px">' + esc(x.cliente) + ' · ' + esc(x.lojaNome||'') + ' · ' + esc(x.transportadora||'') + '</div>'; }).join('')
     : '<div class="vazio">Nenhum pedido esperando nota.</div>';
   $('nf-lista-emitir-box').style.display = emitir.length ? '' : 'none';
+  montarIA();
 
   // 2 · em revisão
   $('nf-n-revisao').textContent = rev.length;
