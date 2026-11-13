@@ -655,7 +655,8 @@ nav button { position: relative; }
 
     <div class="secao">Depois de transmitir as notas</div>
     <div class="carta">
-      <button class="botao" style="margin-top:0" id="btn-baixar" onclick="baixarNotas()">BAIXAR NOTAS E PLANILHAS DO DIA</button>
+      <div class="sub" id="nf-a-baixar" style="text-align:center;margin-bottom:8px"></div>
+      <button class="botao" style="margin-top:0" id="btn-baixar" onclick="baixarNotas()">BAIXAR NOTAS E PLANILHAS</button>
       <div class="nota">PDFs das notas por transportadora, planilha da logística e lista de embalagem, na pasta do dia no Drive.</div>
       <div id="nf-baixar"></div>
     </div>
@@ -2850,6 +2851,9 @@ function montarNotas() {
     : '<div class="vazio">Nenhum pedido esperando nota.</div>';
   $('nf-lista-emitir-box').style.display = emitir.length ? '' : 'none';
   montarIA();
+  var nb = d.aBaixar;
+  $('nf-a-baixar').innerHTML = (nb === null || nb === undefined) ? '' :
+    (nb ? '<b>' + nb + '</b> ' + (nb===1?'nota esperando':'notas esperando') + ' para baixar — de qualquer dia. Vão todas para a pasta de hoje.' : 'Nenhuma nota esperando para baixar.');
 
   // 2 · em revisão
   $('nf-n-revisao').textContent = rev.length;
@@ -2938,7 +2942,8 @@ async function baixarNotas() {
   } catch (e) {
     alvo.innerHTML = '<div class="aviso">Não consegui baixar: ' + esc(e.message) + '</div>';
   }
-  b.disabled = false; b.textContent = 'BAIXAR NOTAS E PLANILHAS DO DIA';
+  b.disabled = false; b.textContent = 'BAIXAR NOTAS E PLANILHAS';
+  setTimeout(function(){ carregarNotas(true); }, 1500);
 }
 
 // ===========================================================================
