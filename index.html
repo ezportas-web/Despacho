@@ -575,6 +575,7 @@ nav button { position: relative; }
   <div class="titulo" id="titulo">DESPACHO</div>
   <div class="dir">
     <span class="conta" id="conta"></span>
+    <button class="atualizar" id="btn-recotar-todos" onclick="atualizarTodasCotacoes()">↻ COTAÇÕES</button>
   </div>
 </header>
 
@@ -673,7 +674,7 @@ nav button { position: relative; }
     <div class="carta">
       <button class="botao vazio" style="margin-top:0" onclick="forcarAtualizacao()">BUSCAR VERSÃO NOVA</button>
       <div class="nota" style="text-align:center;margin-top:14px;opacity:.7">
-        versão <span id="cfg-versao">v52</span></div>
+        versão <span id="cfg-versao">v53</span></div>
     </div>
   </section>
 
@@ -1273,6 +1274,52 @@ function garantirCotacao(i) {
 }
 
 /** Joga fora a cotação guardada deste pedido e pede uma nova ao motor. */
+/**
+ * ATUALIZAR TODAS AS COTAÇÕES (v52 — 13/11/2026)
+ *   Botão "↻ COTAÇÕES" no topo, ao lado do título DESPACHO. Joga fora as
+ *   cotações guardadas no celular e cota de novo TODOS os pedidos da lista,
+ *   direto no SSW (como o "cotar de novo" de cada cartão, só que de uma vez).
+ *   Vai de 3 em 3 para não engasgar o motor; o topo mostra o andamento.
+ */
+var recotandoTodos = false;
+async function atualizarTodasCotacoes() {
+  if (recotandoTodos) return;
+  var fila = [];
+  PEDIDOS.forEach(function (p, i) {
+    var id = idDe(p);
+    if (!id || ENVIANDO[id]) return;
+    fila.push(i);
+  });
+  if (!fila.length) { mostrarToast('Nenhum pedido para cotar.'); return; }
+  recotandoTodos = true;
+  var b = $('btn-recotar-todos');
+  b.disabled = true;
+  registrar('atualizando todas as cotações: ' + fila.length + ' pedido(s)');
+  fila.forEach(function (i) {
+    var id = idDe(PEDIDOS[i]);
+    delete cotacoesProntas[id];
+    delete escolhas[id];
+  });
+  guardarEstado();
+  montarLista();
+  var feitos = 0, total = fila.length;
+  b.textContent = '↻ 0/' + total;
+  async function trabalhador() {
+    while (fila.length) {
+      var i = fila.shift();
+      try { await cotar(i, true); } catch (e) {}
+      feitos++;
+      b.textContent = '↻ ' + feitos + '/' + total;
+    }
+  }
+  await Promise.all([trabalhador(), trabalhador(), trabalhador()]);
+  recotandoTodos = false;
+  b.disabled = false;
+  b.textContent = '↻ COTAÇÕES';
+  mostrarToast('Cotações atualizadas: ' + total + ' pedido(s).');
+  registrar('todas as cotações atualizadas');
+}
+
 async function recotar(i) {
   var p = PEDIDOS[i];
   if (!p) return;
