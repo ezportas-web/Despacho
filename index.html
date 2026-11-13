@@ -2818,7 +2818,7 @@ function montarIA() {
 
 async function conferirIA() {
   var n = (NFS && NFS.revisao || []).length;
-  if (!confirm('Conferir ' + n + (n===1?' nota':' notas') + ' em revisão com a IA?\n\nEla corrige no Bling nome, CPF, telefone e endereço quando estiverem errados. O resto, só avisa.')) return;
+  if (!confirm('Conferir ' + n + (n===1?' nota':' notas') + ' em revisão com a IA?\n\nEla compara cada nota com o e-mail do romaneio (que vale como certo): se produto, quantidade, valor, frete ou transportadora estiverem diferentes, EXCLUI a nota pendente e emite de novo. Nome, CPF, telefone e endereço ela corrige na própria nota.')) return;
   var b = $('btn-ia'); b.disabled = true; b.textContent = '🤖 CONFERINDO…';
   try {
     var d = await pedir('notasConferirIA');
