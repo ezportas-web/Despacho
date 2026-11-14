@@ -685,7 +685,7 @@ nav button { position: relative; }
     <div class="carta">
       <button class="botao vazio" style="margin-top:0" onclick="forcarAtualizacao()">BUSCAR VERSÃO NOVA</button>
       <div class="nota" style="text-align:center;margin-top:14px;opacity:.7">
-        versão <span id="cfg-versao">v60</span></div>
+        versão <span id="cfg-versao">v61</span></div>
     </div>
   </section>
 
@@ -2857,7 +2857,18 @@ function montarNotas() {
 
   // 2 · em revisão
   $('nf-n-revisao').textContent = rev.length;
-  $('nf-lista-revisao').innerHTML = rev.length ? rev.map(function(x){ return cartaoNf(x, 'gerada', 'PRONTA PARA CONFERIR'); }).join('') : '<div class="vazio">Nenhuma nota esperando conferência.</div>';
+  // 14/11: primeiro o que precisa de você (erro, dúvida, corrigida, sem conferência);
+  // as que a IA aprovou ficam no fim, recolhidas.
+  var ordemIA = { erro: 0, duvida: 1, corrigida: 2 };
+  var pesoIA = function(x){ var s = x.ia && x.ia.status; return s in ordemIA ? ordemIA[s] : (s === 'ok' ? 9 : 3); };
+  var revOrd = rev.slice().sort(function(a, b){ return pesoIA(a) - pesoIA(b) || (a.linha - b.linha); });
+  var atencao = revOrd.filter(function(x){ return pesoIA(x) < 9; });
+  var aprovadas = revOrd.filter(function(x){ return pesoIA(x) === 9; });
+  $('nf-lista-revisao').innerHTML = !rev.length ? '<div class="vazio">Nenhuma nota esperando conferência.</div>' :
+    (atencao.length ? atencao.map(function(x){ return cartaoNf(x, 'gerada', 'PRONTA PARA CONFERIR'); }).join('')
+                    : '<div class="vazio">Nenhuma nota com erro ou dúvida.</div>') +
+    (aprovadas.length ? '<details style="margin-top:10px"><summary>mostrar as ' + aprovadas.length + ' que a IA aprovou</summary>' +
+      aprovadas.map(function(x){ return cartaoNf(x, 'gerada', 'PRONTA PARA CONFERIR'); }).join('') + '</details>' : '');
   var iaRodando = !!(d.ia && d.ia.andamento && d.ia.andamento.rodando && (Date.now() - (d.ia.andamento.batida || 0)) < 8 * 60000);
   $('btn-sefaz').disabled = !!d.rodando || !!d.enviando || iaRodando || !rev.length;
   $('btn-sefaz').textContent = d.enviando ? 'TRANSMITINDO…' : (rev.length ? 'TRANSMITIR ' + rev.length + (rev.length===1?' NOTA':' NOTAS') + ' À SEFAZ' : 'TRANSMITIR À SEFAZ');
