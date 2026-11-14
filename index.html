@@ -685,7 +685,7 @@ nav button { position: relative; }
     <div class="carta">
       <button class="botao vazio" style="margin-top:0" onclick="forcarAtualizacao()">BUSCAR VERSÃO NOVA</button>
       <div class="nota" style="text-align:center;margin-top:14px;opacity:.7">
-        versão <span id="cfg-versao">v53</span></div>
+        versão <span id="cfg-versao">v60</span></div>
     </div>
   </section>
 
@@ -2494,13 +2494,13 @@ function montarFaturamento() {
   }
   /**
    * A META DO MÊS
-   *   R$ 350 mil desde 07/10. Era 300 mil, mas setembro já fechou em 341 —
-   *   uma meta que o mês passado bateu sozinha não serve de meta.
+   *   R$ 500 mil desde 14/11 (pedido do Jonas: o mês está indo bem).
+   *   Antes: 350 mil desde 07/10; e 300 mil antes disso.
    *
    *   Mudar daqui: é o único lugar onde o número aparece. A barra, a linha
    *   pontilhada do gráfico e o "quanto falta por dia" saem todos dele.
    */
-  var META_MES = 350000;
+  var META_MES = 500000;
 
   var diasNoMes = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
   var hoje = new Date().getDate();
