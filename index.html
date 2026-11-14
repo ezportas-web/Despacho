@@ -685,7 +685,7 @@ nav button { position: relative; }
     <div class="carta">
       <button class="botao vazio" style="margin-top:0" onclick="forcarAtualizacao()">BUSCAR VERSÃO NOVA</button>
       <div class="nota" style="text-align:center;margin-top:14px;opacity:.7">
-        versão <span id="cfg-versao">v61</span></div>
+        versão <span id="cfg-versao">v62</span></div>
     </div>
   </section>
 
@@ -2783,7 +2783,23 @@ function cartaoNf(x, classe, statusTxt) {
     tagIA(x.ia) +
     (x.msg && classe !== 'gerada' && classe !== 'enviada' ? '<div class="nota">' + esc(x.msg) + '</div>' : '') +
     (x.linkBling ? '<a class="bling" href="' + esc(x.linkBling) + '" target="_blank">abrir a nota no Bling ›</a>' : '') +
+    (classe === 'gerada' && x.nfId && (!x.situacao || x.situacao === 1 || x.situacao === 4) ?
+      '<button class="botao" style="margin-top:10px;padding:10px;font-size:14px" onclick="enviarUma(' + Number(x.linha) + ',\'' + esc(String(x.nfId)) + '\',this)">TRANSMITIR SÓ ESTA À SEFAZ</button>' : '') +
   '</div>';
+}
+
+async function enviarUma(linha, nfId, b) {
+  var x = ((NFS && NFS.revisao) || []).filter(function(n){ return Number(n.linha) === linha; })[0] || {};
+  if (!confirm('Transmitir SÓ a nota de ' + (x.cliente || 'este pedido') + (x.nfNumero ? ' (NF ' + x.nfNumero + ')' : '') + ' à SEFAZ?\n\nDepois de autorizada, a nota não pode mais ser editada — só cancelada.')) return;
+  b.disabled = true; b.textContent = 'TRANSMITINDO…';
+  try {
+    var d = await pedir('notasEnviarUma', { linha: linha, nfId: nfId });
+    registrar('notas: transmitir só uma — ' + (d.msg || 'ok'));
+    mostrarToast(d.msg || 'Transmitida');
+  } catch (e) {
+    mostrarToast('Não foi: ' + e.message);
+  }
+  setTimeout(function(){ carregarNotas(true); }, 1500);
 }
 
 function tagIA(r) {
