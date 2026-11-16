@@ -619,7 +619,13 @@ nav button { position: relative; }
   <section class="tela">
     <div id="nf-estado"></div>
 
-    <!-- PASSO 1 · EMITIR -->
+    <!-- PASSO 1 · AUTOMÁTICO (v63, 16/11/2026): emissão às 12:30 de seg a sex e conferência pelo Claude.
+         Os botões EMITIR e CONFERIR POR IA saíram; os elementos ficam escondidos para o resto da tela não quebrar. -->
+    <div class="passo">
+      <div class="rotulo">1 · EMISSÃO AUTOMÁTICA</div>
+      <div class="sub">De segunda a sexta, às 12:30, as notas de todos os romaneios são emitidas sozinhas. Logo depois o Claude confere uma por uma e avisa no Telegram quando pode transmitir.</div>
+      <div class="sub" style="margin-top:6px">Esperando a próxima emissão: <b id="nf-n-emitir">–</b> <span id="nf-sub-emitir">pedidos com romaneio</span></div>
+      <div style="display:none">
     <div class="passo">
       <div class="rotulo">1 · PARA EMITIR</div>
       <div class="numero" id="nf-n-emitir">–</div>
@@ -628,6 +634,9 @@ nav button { position: relative; }
       <button class="botao ia" id="btn-ia" onclick="conferirIA()">🤖 CONFERIR POR IA</button>
       <div class="ia-resumo" id="nf-ia"></div>
       <details class="lista-nf" id="nf-lista-emitir-box"><summary>ver os pedidos</summary><div id="nf-lista-emitir"></div></details>
+    </div>
+
+      </div>
     </div>
 
     <!-- PASSO 2 · EM REVISÃO -->
@@ -685,7 +694,7 @@ nav button { position: relative; }
     <div class="carta">
       <button class="botao vazio" style="margin-top:0" onclick="forcarAtualizacao()">BUSCAR VERSÃO NOVA</button>
       <div class="nota" style="text-align:center;margin-top:14px;opacity:.7">
-        versão <span id="cfg-versao">v62</span></div>
+        versão <span id="cfg-versao">v63</span></div>
     </div>
   </section>
 
