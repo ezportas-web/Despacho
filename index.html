@@ -632,11 +632,20 @@ nav button { position: relative; }
   <section class="tela">
     <div id="nf-estado"></div>
 
+    <!-- PRÉVIA DE EMBALAGEM (v65, 19/11/2026): todos os romaneios que ainda não têm nota, no formato da lista
+         de embalagem. Cada prévia nova substitui a anterior; um pedido pode aparecer em várias prévias. -->
+    <div class="passo">
+      <div class="rotulo">PRÉVIA DE EMBALAGEM</div>
+      <div class="sub">Lista do que já tem romaneio e ainda não tem nota, para adiantar a embalagem. Cada prévia nova substitui a anterior.</div>
+      <button class="botao" id="btn-previa" onclick="gerarPrevia()">GERAR PRÉVIA DE EMBALAGEM</button>
+      <div id="previa-res"></div>
+    </div>
+
     <!-- PASSO 1 · AUTOMÁTICO (v63, 16/11/2026): emissão às 12:30 de seg a sex e conferência pelo Claude.
          Os botões EMITIR e CONFERIR POR IA saíram; os elementos ficam escondidos para o resto da tela não quebrar. -->
     <div class="passo">
       <div class="rotulo">1 · EMISSÃO AUTOMÁTICA</div>
-      <div class="sub">De segunda a sexta, às 12:30, as notas de todos os romaneios são emitidas sozinhas. Logo depois o Claude confere uma por uma e avisa no Telegram quando pode transmitir.</div>
+      <div class="sub">De segunda a sexta, às 12:00, as notas de todos os romaneios são emitidas sozinhas. Logo depois o Claude confere uma por uma e avisa no Telegram quando pode transmitir.</div>
       <div class="sub" style="margin-top:6px">Esperando a próxima emissão: <b id="nf-n-emitir">–</b> <span id="nf-sub-emitir">pedidos com romaneio</span></div>
       <div style="display:none">
     <div class="passo">
@@ -712,7 +721,7 @@ nav button { position: relative; }
     <div class="carta">
       <button class="botao vazio" style="margin-top:0" onclick="forcarAtualizacao()">BUSCAR VERSÃO NOVA</button>
       <div class="nota" style="text-align:center;margin-top:14px;opacity:.7">
-        versão <span id="cfg-versao">v64</span></div>
+        versão <span id="cfg-versao">v65</span></div>
     </div>
   </section>
 
@@ -2995,6 +3004,31 @@ function montarNotas() {
 function horaCurta(iso) {
   try { var t = new Date(iso); return t.toLocaleDateString('pt-BR', {day:'2-digit',month:'2-digit'}) + ' ' + t.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'}); }
   catch (e) { return ''; }
+}
+
+// PRÉVIA DE EMBALAGEM (v65 — 19/11/2026)
+// Pede ao motor o PDF com os romaneios sem nota e oferece para baixar na hora.
+var previaUrl = null;
+async function gerarPrevia() {
+  var b = $('btn-previa'), r = $('previa-res');
+  b.disabled = true; b.textContent = 'GERANDO A PRÉVIA…';
+  r.innerHTML = '<div class="carregando">Montando a lista dos romaneios sem nota…</div>';
+  try {
+    var d = await pedir('previaEmbalagem');
+    registrar('notas: prévia de embalagem — ' + (d.pedidos || 0) + ' pedidos');
+    if (!d.pedidos) { r.innerHTML = '<div class="nota" style="text-align:center">' + esc(d.msg || 'Nenhum romaneio sem nota agora.') + '</div>'; return; }
+    var bin = atob(d.base64), u8 = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    if (previaUrl) URL.revokeObjectURL(previaUrl);
+    previaUrl = URL.createObjectURL(new Blob([u8], { type: 'application/pdf' }));
+    r.innerHTML = '<div class="sub" style="margin-top:8px;text-align:center">Gerada às <b>' + esc(d.gerada) + '</b> · <b>' + d.pedidos + '</b> ' + (d.pedidos===1?'pedido':'pedidos') + ' · <b>' + d.pecas + '</b> ' + (d.pecas===1?'peça':'peças') + '</div>' +
+      '<a class="botao verde" style="display:block;text-align:center;text-decoration:none;margin-top:8px" href="' + previaUrl + '" download="' + esc(d.nome) + '">BAIXAR PDF DA PRÉVIA</a>' +
+      '<div class="nota" style="text-align:center">Se o download não abrir no celular: <a href="' + esc(d.url) + '" target="_blank" rel="noopener">abrir pelo Drive</a></div>';
+  } catch (e) {
+    r.innerHTML = '<div class="aviso">Não consegui gerar a prévia: ' + esc(e.message) + '</div>';
+  } finally {
+    b.disabled = false; b.textContent = 'GERAR PRÉVIA DE EMBALAGEM';
+  }
 }
 
 async function emitirNotas() {
