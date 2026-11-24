@@ -721,7 +721,7 @@ nav button { position: relative; }
     <div class="carta">
       <button class="botao vazio" style="margin-top:0" onclick="forcarAtualizacao()">BUSCAR VERSÃO NOVA</button>
       <div class="nota" style="text-align:center;margin-top:14px;opacity:.7">
-        versão <span id="cfg-versao">v65</span></div>
+        versão <span id="cfg-versao">v66</span></div>
     </div>
   </section>
 
@@ -2673,9 +2673,11 @@ function montarFaturamento() {
 /**
  * O QUE ESTA ABA FAZ
  *   Lista as perguntas sem resposta das duas lojas, a mais nova em cima.
- *   Quando o robô de respostas tiver uma sugestão, ela já vem escrita na
- *   caixa (com o selo "SUGESTÃO DA IA"); senão a caixa vem vazia.
- *   Você corrige o que quiser e toca em ENVIAR — vai direto ao Mercado Livre.
+ *   (v66, 24/11/2026) Sem sugestão da IA e sem envio direto: você escreve só
+ *   a ORIENTAÇÃO (o que responder) e toca em ENVIAR PARA O CLAUDE. A pergunta
+ *   some da lista na hora; o motor pede ao Claude a resposta final, com as
+ *   regras das lojas, e envia ao Mercado Livre. Se der erro, ela volta à lista
+ *   com o motivo.
  *   IGNORAR só tira da lista do app; no ML a pergunta continua lá.
  *
  *   O número vermelho na aba é quantas estão esperando. Ele se atualiza
@@ -2734,13 +2736,12 @@ function montarPerguntas() {
         '</div>' +
       '</div>' +
       '<div class="texto">' + esc(q.texto) + '</div>' +
-      (q.sugestao ? '<div class="ia">✦ SUGESTÃO DA IA — confira antes de enviar</div>' : '') +
-      '<textarea id="resp-' + esc(q.id) + '" placeholder="Escreva a resposta…">' + esc(q.sugestao || '') + '</textarea>' +
+      '<textarea id="resp-' + esc(q.id) + '" placeholder="Oriente o Claude: o que responder…"></textarea>' +
       '<div class="acoes">' +
         '<button class="botao vazio" onclick="ignorarPergunta(' + i + ')">IGNORAR</button>' +
-        '<button class="botao" onclick="responderPergunta(' + i + ')">ENVIAR</button>' +
+        '<button class="botao" onclick="responderPergunta(' + i + ')">ENVIAR PARA O CLAUDE</button>' +
       '</div>' +
-      '<div class="nota" id="st-' + esc(q.id) + '"></div>' +
+      '<div class="nota" id="st-' + esc(q.id) + '">' + esc(q.erroClaude || '') + '</div>' +
     '</div>';
   });
   $('perg').innerHTML = h;
@@ -2755,15 +2756,20 @@ function tirarPergunta(id) {
 
 async function responderPergunta(i) {
   var q = PERG[i]; if (!q) return;
-  var texto = $('resp-' + q.id).value.trim();
+  var orient = $('resp-' + q.id).value.trim();
   var st = $('st-' + q.id);
-  if (!texto) { st.textContent = 'Escreva a resposta primeiro.'; return; }
-  st.textContent = 'enviando…';
+  if (!orient) { st.textContent = 'Escreva a orientação primeiro.'; return; }
+  delete q.erroClaude;
+  tirarPergunta(q.id);                                  // some na hora; o Claude responde por trás
   try {
-    await pedir('responder', { loja: q.loja, id: q.id, texto: texto });
-    registrar('pergunta ' + q.id + ' respondida');
-    tirarPergunta(q.id);
-  } catch (e) { st.textContent = 'Não foi: ' + e.message; }
+    var d = await pedir('responder', { loja: q.loja, id: q.id, orientacao: orient });
+    registrar('pergunta ' + q.id + ' respondida pelo Claude: ' + (d.resposta || ''));
+  } catch (e) {
+    registrar('pergunta ' + q.id + ' NÃO respondida: ' + e.message);
+    q.erroClaude = 'Não foi: ' + e.message + ' (sua orientação: ' + orient + ')';
+    PERG = PERG || []; PERG.unshift(q);                 // volta para a lista com o motivo
+    seloPerguntas(); atualizarConta(3); montarPerguntas();
+  }
 }
 
 async function ignorarPergunta(i) {
