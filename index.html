@@ -122,7 +122,7 @@ nav {
   padding-bottom: env(safe-area-inset-bottom, 0px);
   background: rgba(10,9,8,.97);
   border-top: 1px solid var(--linha);
-  display: grid; grid-template-columns: repeat(6, 1fr);
+  display: grid; grid-template-columns: repeat(7, 1fr);
 }
 nav button {
   background: none; border: 0; padding: 10px 0 11px;
@@ -336,6 +336,16 @@ textarea { min-height: 260px; font-size: 13px; line-height: 1.5;
   background: var(--carta-alta); border: 1px solid #6B5327; border-radius: 12px;
   padding: 12px 14px; font-size: 13px; color: var(--dourado-forte); margin-bottom: 12px;
 }
+/* --- estoque (v67) --- */
+.est-linha { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--linha); }
+.est-linha:first-of-type { border-top: 0; }
+.est-desc { flex: 1; font-size: 13px; line-height: 1.25; }
+.est-desc small { display: block; color: var(--texto-3); font-size: 11px; margin-top: 2px; }
+.est-qtd { min-width: 38px; text-align: right; font-size: 18px; font-weight: 700; }
+.est-qtd.zero { color: var(--vermelho); } .est-qtd.baixo { color: #E0B84A; } .est-qtd.ok { color: var(--verde); }
+.est-bt { border: 1px solid var(--linha); background: none; color: var(--texto-2); border-radius: 10px; padding: 7px 9px; font-size: 11px; min-width: 76px; }
+.est-bt.ativar { border-color: var(--dourado); color: var(--dourado); }
+.est-linha.off .est-desc { opacity: .55; }
 .carregando, .vazio { text-align: center; color: var(--texto-3); padding: 40px 20px; font-size: 14px; }
 
 /* os dias da semana embaixo do gráfico */
@@ -595,7 +605,7 @@ nav button { position: relative; }
   <div class="dir">
     <span class="conta" id="conta"></span>
     <button class="atualizar" id="btn-recotar-todos" onclick="atualizarTodasCotacoes()">↻ COTAÇÕES</button>
-    <button class="atualizar engrenagem" id="btn-ajustes" onclick="irPara(6)" aria-label="Ajustes">
+    <button class="atualizar engrenagem" id="btn-ajustes" onclick="irPara(7)" aria-label="Ajustes">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3.2"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6L17 7M7 17l-1.4 1.4"/></svg></button>
   </div>
 </header>
@@ -698,7 +708,12 @@ nav button { position: relative; }
     <div id="resumo"><div class="carregando">Carregando…</div></div>
   </section>
 
-  <!-- ================= 6 · AJUSTES (abre pela engrenagem do topo) ================= -->
+  <!-- ================= 6 · ESTOQUE (v67, 27/11/2026) ================= -->
+  <section class="tela">
+    <div id="estoque"><div class="carregando">Carregando…</div></div>
+  </section>
+
+  <!-- ================= 7 · AJUSTES (abre pela engrenagem do topo) ================= -->
   <section class="tela">
     <div class="secao" style="margin-top:4px">Conexão</div>
     <div class="carta">
@@ -721,7 +736,7 @@ nav button { position: relative; }
     <div class="carta">
       <button class="botao vazio" style="margin-top:0" onclick="forcarAtualizacao()">BUSCAR VERSÃO NOVA</button>
       <div class="nota" style="text-align:center;margin-top:14px;opacity:.7">
-        versão <span id="cfg-versao">v66</span></div>
+        versão <span id="cfg-versao">v67</span></div>
     </div>
   </section>
 
@@ -747,6 +762,9 @@ nav button { position: relative; }
   <button id="aba-5" onclick="irPara(5)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3v18M16.5 7.5c0-1.7-2-3-4.5-3s-4.5 1.3-4.5 3 2 2.6 4.5 3 4.5 1.4 4.5 3.2-2 3-4.5 3-4.5-1.3-4.5-3"/></svg>
     RESUMO</button>
+  <button id="aba-6" onclick="irPara(6)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 8l9-5 9 5v8l-9 5-9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg>
+    ESTOQUE</button>
 </nav>
 <div class="luzes"></div>
 <div class="neve" id="neve"></div>
@@ -925,14 +943,14 @@ async function pedir(api, extras) {
 // NAVEGAÇÃO — as abas e o deslizar conversam
 // ===========================================================================
 var telas = $('telas');
-var TITULOS = ['DESPACHO', 'COTAÇÃO', 'FATURAMENTO', 'PERGUNTAS', 'NOTAS FISCAIS', 'RESUMO', 'AJUSTES'];
+var TITULOS = ['DESPACHO', 'COTAÇÃO', 'FATURAMENTO', 'PERGUNTAS', 'NOTAS FISCAIS', 'RESUMO', 'ESTOQUE', 'AJUSTES'];
 
 function irPara(i) {
   telas.scrollTo({ left: telas.clientWidth * i, behavior: 'smooth' });
   marcarAba(i);
 }
 function marcarAba(i) {
-  for (var n = 0; n < 6; n++) $('aba-' + n).classList.toggle('on', n === i);
+  for (var n = 0; n < 7; n++) $('aba-' + n).classList.toggle('on', n === i);
   marcarNoHistorico_(i);
   $('titulo').textContent = TITULOS[i];
   atualizarConta(i);
@@ -940,7 +958,8 @@ function marcarAba(i) {
   if (i === 3 && !PERG) carregarPerguntas();
   if (i === 4) carregarNotas();
   if (i === 5 && !RESUMO) carregarResumo();
-  $('btn-ajustes').classList.toggle('on', i === 6);
+  if (i === 6 && !ESTQ) carregarEstoque();
+  $('btn-ajustes').classList.toggle('on', i === 7);
   if (i === 0 && !PEDIDOS.length) carregarPedidos();
   if (i === 0) limparFeitos();
 }
@@ -1015,6 +1034,7 @@ function recarregar() {
   var i = abaAtual();
   if (i === 2) { FAT = null; carregarFaturamento(); }
   else if (i === 5) { RESUMO = null; carregarResumo(); }
+  else if (i === 6) { carregarEstoque(true); }
   else if (i === 3) { carregarPerguntas(true); }
   else { carregarPedidos(true); }
 }
@@ -2301,6 +2321,54 @@ function naoFoi(motivo) {
  *   Everton — os mesmos números da planilha, sem conta nova aqui.
  *   Abre no mês mais recente; os botões de cima trocam de mês.
  */
+// ===========================================================================
+// ESTOQUE (v67, 27/11/2026) — só para ver; o botão pausa/reativa os anúncios
+// que usam a peça (Fácil e Domo). A quantidade não muda com o botão.
+// ===========================================================================
+var ESTQ = null, ESTQ_OCUPADO = false;
+async function carregarEstoque(forcar) {
+  if (!ESTQ) $('estoque').innerHTML = '<div class="carregando">Carregando…</div>';
+  try { ESTQ = await pedir('estoque', forcar ? { forcar: 1 } : {}); montarEstoque(); }
+  catch (e) { ESTQ = null; $('estoque').innerHTML = '<div class="vazio">' + esc(e.message) + '</div>'; }
+}
+function fmtQtdEst(q) { q = Math.round(q * 100) / 100; return String(q).replace('.', ','); }
+function montarEstoque() {
+  var h = '<div class="nota" style="margin:2px 2px 6px">Contagem de ' + esc((ESTQ.base||'').split('-').reverse().join('/')) +
+          ' · ' + (ESTQ.vendasNovas||0) + ' vendas novas descontadas · atualizado ' + esc(ESTQ.atualizado||'') + '</div>';
+  (ESTQ.grupos || []).forEach(function (g) {
+    h += '<div class="secao">' + esc(g.nome) + '</div><div class="carta">';
+    g.itens.forEach(function (it) {
+      var cls = it.qtd <= 0 ? 'zero' : (it.qtd <= 3 ? 'baixo' : 'ok');
+      h += '<div class="est-linha' + (it.desativado ? ' off' : '') + '">' +
+        '<div class="est-desc">' + esc(it.desc) + (it.desativado ? '<small>desativado · ' + it.pausados + ' anúncios pausados</small>' : '') + '</div>' +
+        '<div class="est-qtd ' + cls + '">' + fmtQtdEst(it.qtd) + '</div>' +
+        '<button class="est-bt' + (it.desativado ? ' ativar' : '') + '" onclick="alternarEstoque(\'' + esc(it.sku).replace(/'/g, "\\'") + '\', this)">' +
+        (it.desativado ? 'ATIVAR' : 'DESATIVAR') + '</button></div>';
+    });
+    h += '</div>';
+  });
+  $('estoque').innerHTML = h;
+}
+async function alternarEstoque(sku, bt) {
+  if (ESTQ_OCUPADO) return;
+  var it = null; (ESTQ.grupos||[]).forEach(function(g){ g.itens.forEach(function(x){ if (x.sku === sku) it = x; }); });
+  if (!it) return;
+  ESTQ_OCUPADO = true; var txt = bt.textContent; bt.textContent = '…';
+  try {
+    var pv = await pedir('estoquePrevia', { sku: sku });
+    var msg = pv.acao === 'ativar'
+      ? 'Reativar os ' + pv.total + ' anúncios que foram pausados para "' + it.desc + '"?'
+      : (pv.total ? 'Pausar ' + pv.total + ' anúncios que usam "' + it.desc + '"?\n\nFácil: ' + pv.facil + ' · Domo: ' + pv.domo + '\n\nA quantidade do estoque não muda.'
+                  : 'Nenhum anúncio ativo usa "' + it.desc + '". Marcar como desativado mesmo assim?');
+    if (!confirm(msg)) { bt.textContent = txt; return; }
+    var r = await pedir('estoqueAlternar', { sku: sku });
+    mostrarToast(r.acao === 'ativado' ? r.ok + ' anúncios reativados' + (r.falha ? ' · ' + r.falha + ' falharam' : '')
+                                      : r.ok + ' anúncios pausados' + (r.falha ? ' · ' + r.falha + ' falharam' : ''));
+    ESTQ = await pedir('estoque', {}); montarEstoque();
+  } catch (e) { bt.textContent = txt; mostrarToast('Erro: ' + e.message); }
+  finally { ESTQ_OCUPADO = false; }
+}
+
 var RESUMO = null, RESUMO_MES = -1;
 
 async function carregarResumo() {
