@@ -736,7 +736,7 @@ nav button { position: relative; }
     <div class="carta">
       <button class="botao vazio" style="margin-top:0" onclick="forcarAtualizacao()">BUSCAR VERSÃO NOVA</button>
       <div class="nota" style="text-align:center;margin-top:14px;opacity:.7">
-        versão <span id="cfg-versao">v67</span></div>
+        versão <span id="cfg-versao">v68</span></div>
     </div>
   </section>
 
@@ -2340,10 +2340,10 @@ function montarEstoque() {
     g.itens.forEach(function (it) {
       var cls = it.qtd <= 0 ? 'zero' : (it.qtd <= 3 ? 'baixo' : 'ok');
       h += '<div class="est-linha' + (it.desativado ? ' off' : '') + '">' +
-        '<div class="est-desc">' + esc(it.desc) + (it.desativado ? '<small>desativado · ' + it.pausados + ' anúncios pausados</small>' : '') + '</div>' +
+        '<div class="est-desc">' + esc(it.desc) + (it.semAnuncio ? '<small>nenhum anúncio usa esta peça</small>' : it.desativado ? '<small>' + (it.pausados ? it.pausados + ' anúncios pausados pelo app' : 'nenhum anúncio ativo') + '</small>' : '<small>' + (it.ativos||0) + ' anúncios ativos</small>') + '</div>' +
         '<div class="est-qtd ' + cls + '">' + fmtQtdEst(it.qtd) + '</div>' +
-        '<button class="est-bt' + (it.desativado ? ' ativar' : '') + '" onclick="alternarEstoque(\'' + esc(it.sku).replace(/'/g, "\\'") + '\', this)">' +
-        (it.desativado ? 'ATIVAR' : 'DESATIVAR') + '</button></div>';
+        (it.semAnuncio ? '<span style="min-width:76px"></span>' : '<button class="est-bt' + (it.desativado ? ' ativar' : '') + '" onclick="alternarEstoque(\'' + esc(it.sku).replace(/'/g, "\\'") + '\', this)">' +
+        (it.desativado ? 'ATIVAR' : 'DESATIVAR') + '</button>') + '</div>';
     });
     h += '</div>';
   });
@@ -2357,7 +2357,7 @@ async function alternarEstoque(sku, bt) {
   try {
     var pv = await pedir('estoquePrevia', { sku: sku });
     var msg = pv.acao === 'ativar'
-      ? 'Reativar os ' + pv.total + ' anúncios que foram pausados para "' + it.desc + '"?'
+      ? (pv.total ? 'Reativar ' + pv.total + ' anúncios pausados que usam "' + it.desc + '"?' + (pv.porFora ? '\n\nFácil: ' + pv.facil + ' · Domo: ' + pv.domo : '') : 'Não achei anúncio pausado que use "' + it.desc + '".')
       : (pv.total ? 'Pausar ' + pv.total + ' anúncios que usam "' + it.desc + '"?\n\nFácil: ' + pv.facil + ' · Domo: ' + pv.domo + '\n\nA quantidade do estoque não muda.'
                   : 'Nenhum anúncio ativo usa "' + it.desc + '". Marcar como desativado mesmo assim?');
     if (!confirm(msg)) { bt.textContent = txt; return; }
