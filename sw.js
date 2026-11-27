@@ -1,24 +1,24 @@
 /**
- * O service worker — é ele que faz o navegador aceitar instalar o aplicativo,
+ * O service worker â Ã© ele que faz o navegador aceitar instalar o aplicativo,
  * e o que permite abrir sem sinal.
  *
- * O QUE MUDOU EM 23/09, E POR QUÊ
- *   A regra antiga era "se está guardado, usa o guardado". Com isso, subir
- *   um index.html novo no GitHub não adiantava: o celular continuava abrindo
- *   a tela antiga, e a gente discutia o comportamento de uma versão que o
- *   aparelho nem tinha recebido. Aconteceu três vezes no mesmo dia.
+ * O QUE MUDOU EM 23/09, E POR QUÃ
+ *   A regra antiga era "se estÃ¡ guardado, usa o guardado". Com isso, subir
+ *   um index.html novo no GitHub nÃ£o adiantava: o celular continuava abrindo
+ *   a tela antiga, e a gente discutia o comportamento de uma versÃ£o que o
+ *   aparelho nem tinha recebido. Aconteceu trÃªs vezes no mesmo dia.
  *
- *   Agora a PÁGINA é buscada na rede primeiro. Se a rede responder, ela entra
- *   e a cópia guardada é atualizada. Se não responder — sem sinal, no galpão —,
- *   aí sim vale a guardada.
+ *   Agora a PÃGINA Ã© buscada na rede primeiro. Se a rede responder, ela entra
+ *   e a cÃ³pia guardada Ã© atualizada. Se nÃ£o responder â sem sinal, no galpÃ£o â,
+ *   aÃ­ sim vale a guardada.
  *
- *   O resto da casca (ícones, manifesto) continua saindo do cache, que é
- *   rápido e não muda.
+ *   O resto da casca (Ã­cones, manifesto) continua saindo do cache, que Ã©
+ *   rÃ¡pido e nÃ£o muda.
  *
- * TROCOU O index.html? Mude o número da versão abaixo; ele também limpa o
- * que ficou de trás.
+ * TROCOU O index.html? Mude o nÃºmero da versÃ£o abaixo; ele tambÃ©m limpa o
+ * que ficou de trÃ¡s.
  */
-const VERSAO = 'despacho-v67';
+const VERSAO = 'despacho-v68';
 
 const CASCA = [
   './',
@@ -53,9 +53,9 @@ self.addEventListener('fetch', (e) => {
   if (url.hostname.includes('script.google')) return;
 
   /**
-   * A PÁGINA VEM DA REDE PRIMEIRO
-   *   Vale para a navegação (abrir o aplicativo) e para o próprio
-   *   index.html. É o que faz a versão nova chegar sem precisar desinstalar.
+   * A PÃGINA VEM DA REDE PRIMEIRO
+   *   Vale para a navegaÃ§Ã£o (abrir o aplicativo) e para o prÃ³prio
+   *   index.html. Ã o que faz a versÃ£o nova chegar sem precisar desinstalar.
    */
   const ehPagina = e.request.mode === 'navigate' ||
                    url.pathname.endsWith('/') ||
@@ -75,7 +75,7 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // o resto: guardado primeiro, que é rápido e não muda
+  // o resto: guardado primeiro, que Ã© rÃ¡pido e nÃ£o muda
   e.respondWith(
     caches.match(e.request).then((achado) => achado || fetch(e.request))
   );
