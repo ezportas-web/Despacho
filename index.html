@@ -736,7 +736,7 @@ nav button { position: relative; }
     <div class="carta">
       <button class="botao vazio" style="margin-top:0" onclick="forcarAtualizacao()">BUSCAR VERSÃO NOVA</button>
       <div class="nota" style="text-align:center;margin-top:14px;opacity:.7">
-        versão <span id="cfg-versao">v68</span></div>
+        versão <span id="cfg-versao">v69</span></div>
     </div>
   </section>
 
@@ -2339,10 +2339,11 @@ function montarEstoque() {
     h += '<div class="secao">' + esc(g.nome) + '</div><div class="carta">';
     g.itens.forEach(function (it) {
       var cls = it.qtd <= 0 ? 'zero' : (it.qtd <= 3 ? 'baixo' : 'ok');
-      h += '<div class="est-linha' + (it.desativado ? ' off' : '') + '">' +
-        '<div class="est-desc">' + esc(it.desc) + (it.semAnuncio ? '<small>nenhum anúncio usa esta peça</small>' : it.desativado ? '<small>' + (it.pausados ? it.pausados + ' anúncios pausados pelo app' : 'nenhum anúncio ativo') + '</small>' : '<small>' + (it.ativos||0) + ' anúncios ativos</small>') + '</div>' +
+      var alt = it.alternavel !== false;
+      h += '<div class="est-linha' + (alt && it.desativado ? ' off' : '') + '">' +
+        '<div class="est-desc">' + esc(it.desc) + (it.semAnuncio ? '<small>nenhum anúncio usa esta peça</small>' : !alt ? '' : it.desativado ? '<small>' + (it.pausados ? it.pausados + ' anúncios pausados pelo app' : 'nenhum anúncio ativo') + '</small>' : '<small>' + (it.ativos||0) + ' anúncios ativos</small>') + '</div>' +
         '<div class="est-qtd ' + cls + '">' + fmtQtdEst(it.qtd) + '</div>' +
-        (it.semAnuncio ? '<span style="min-width:76px"></span>' : '<button class="est-bt' + (it.desativado ? ' ativar' : '') + '" onclick="alternarEstoque(\'' + esc(it.sku).replace(/'/g, "\\'") + '\', this)">' +
+        (it.semAnuncio || !alt ? '<span style="min-width:76px"></span>' : '<button class="est-bt' + (it.desativado ? ' ativar' : '') + '" onclick="alternarEstoque(\'' + esc(it.sku).replace(/'/g, "\\'") + '\', this)">' +
         (it.desativado ? 'ATIVAR' : 'DESATIVAR') + '</button>') + '</div>';
     });
     h += '</div>';
